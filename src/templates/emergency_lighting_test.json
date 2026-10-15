@@ -1,0 +1,53 @@
+{
+  "id": "emergency_lighting_test",
+  "name": "Emergency Lighting Test",
+  "system_type": "emergency_lighting",
+  "job_type": "service",
+  "version": 1,
+  "sections": [
+    {
+      "id": "test_details",
+      "title": "Test Details",
+      "fields": [
+        {"id": "test_type", "type": "select", "label": "Test type", "required": true, "options": ["Monthly functional test", "Annual duration test", "Partial duration test"]},
+        {"id": "test_date", "type": "text", "label": "Test date (DD/MM/YYYY)", "required": true},
+        {"id": "engineer_name", "type": "text", "label": "Engineer name"}
+      ]
+    },
+    {
+      "id": "fittings_tested",
+      "title": "Fittings Tested",
+      "fields": [
+        {"id": "fittings_tested_count", "type": "number", "label": "Number of fittings tested", "required": true},
+        {"id": "fitting_locations", "type": "longtext", "label": "Fitting locations / IDs tested", "hint": "List fitting reference numbers or locations"},
+        {"id": "emergency_duration_result", "type": "pass_fail_note", "label": "Duration / functional test result", "triggers_remedial": true, "remedial_priority": "urgent", "hint": "Annual: all fittings must illuminate for rated duration. Monthly: spot check."}
+      ]
+    },
+    {
+      "id": "failures",
+      "title": "Failures",
+      "fields": [
+        {"id": "failures_found", "type": "yes_no_na", "label": "Any failures found?", "required": true, "triggers_remedial": true, "remedial_priority": "urgent"},
+        {"id": "failures_description", "type": "longtext", "label": "Describe failed fittings (location and fault)", "hint": "Include fitting ID, location, and nature of fault"}
+      ]
+    },
+    {
+      "id": "remedials_section",
+      "title": "Remedials",
+      "fields": [
+        {"id": "remedials_free_text", "type": "longtext", "label": "Additional remedials (one per line)", "hint": "Each line becomes a separate remedial item"},
+        {"id": "remedial_priority", "type": "select", "label": "Priority", "options": ["urgent", "recommended", "advisory"]}
+      ]
+    },
+    {
+      "id": "sign_off",
+      "title": "Sign-Off",
+      "fields": [
+        {"id": "photos", "type": "photo", "label": "Photos"},
+        {"id": "engineer_signature", "type": "signature", "label": "Engineer signature", "required": true},
+        {"id": "customer_name", "type": "text", "label": "Customer representative name"},
+        {"id": "customer_signature", "type": "signature", "label": "Customer signature"}
+      ]
+    }
+  ]
+}

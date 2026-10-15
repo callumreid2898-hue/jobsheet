@@ -1,0 +1,65 @@
+{
+  "id": "reactive_callout",
+  "name": "Reactive Callout",
+  "system_type": null,
+  "job_type": "reactive",
+  "version": 1,
+  "sections": [
+    {
+      "id": "fault",
+      "title": "Reported Fault",
+      "fields": [
+        {"id": "reported_fault", "type": "longtext", "label": "Reported fault description", "required": true},
+        {"id": "time_on_site", "type": "text", "label": "Time on site (HH:MM)", "required": true},
+        {"id": "time_off_site", "type": "text", "label": "Time off site (HH:MM)", "required": true}
+      ]
+    },
+    {
+      "id": "findings",
+      "title": "Findings",
+      "fields": [
+        {"id": "findings", "type": "longtext", "label": "Findings on arrival", "required": true}
+      ]
+    },
+    {
+      "id": "work_carried_out",
+      "title": "Work Carried Out",
+      "fields": [
+        {"id": "work_description", "type": "longtext", "label": "Work carried out", "required": true}
+      ]
+    },
+    {
+      "id": "parts",
+      "title": "Parts Used",
+      "fields": [
+        {"id": "parts_used", "type": "longtext", "label": "Parts used (part number, qty, description)"}
+      ]
+    },
+    {
+      "id": "remedials_section",
+      "title": "Remedials / Recommendations",
+      "fields": [
+        {"id": "remedials_free_text", "type": "longtext", "label": "Recommended actions (one per line)", "hint": "Each line of text will be saved as a separate remedial recommendation"},
+        {"id": "remedial_priority", "type": "select", "label": "Priority for above remedials", "options": ["urgent", "recommended", "advisory"]}
+      ]
+    },
+    {
+      "id": "system_status",
+      "title": "System Left In",
+      "fields": [
+        {"id": "system_left_in", "type": "select", "label": "System left in", "required": true, "options": ["full working order", "partial operation", "disabled — owner informed", "awaiting parts"]},
+        {"id": "system_notes", "type": "longtext", "label": "Additional notes"}
+      ]
+    },
+    {
+      "id": "sign_off",
+      "title": "Sign-Off",
+      "fields": [
+        {"id": "photos", "type": "photo", "label": "Photos"},
+        {"id": "engineer_signature", "type": "signature", "label": "Engineer signature", "required": true},
+        {"id": "customer_name", "type": "text", "label": "Customer representative name"},
+        {"id": "customer_signature", "type": "signature", "label": "Customer signature"}
+      ]
+    }
+  ]
+}

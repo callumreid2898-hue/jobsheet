@@ -1,17 +1,17 @@
-// App.tsx — Router and auth wrapper.
-// Fully implemented by Workstream E. This is the scaffold stub.
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
+import { AuthProvider } from './auth/AuthProvider';
+import { AppRoutes } from './router/index';
+import { startSyncEngine } from './lib/syncEngine';
 
-function App() {
+// Start sync engine once
+startSyncEngine();
+
+export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<div className="p-8 text-center">Login — coming soon</div>} />
-        <Route path="*" element={<div className="p-8 text-center">404</div>} />
-      </Routes>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   );
 }
-
-export default App;

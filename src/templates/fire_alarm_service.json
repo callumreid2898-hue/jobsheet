@@ -1,0 +1,89 @@
+{
+  "id": "fire_alarm_service",
+  "name": "Fire Alarm Service",
+  "system_type": "fire_alarm",
+  "job_type": "service",
+  "version": 1,
+  "sections": [
+    {
+      "id": "panel_checks",
+      "title": "Panel Checks",
+      "fields": [
+        {"id": "panel_fault_leds", "type": "pass_fail_note", "label": "Fault LEDs / display clear", "required": true, "triggers_remedial": true, "remedial_priority": "urgent"},
+        {"id": "panel_mains_power", "type": "pass_fail_note", "label": "Mains power present", "required": true, "triggers_remedial": true, "remedial_priority": "urgent"},
+        {"id": "panel_battery_condition", "type": "pass_fail_note", "label": "Battery condition", "required": true, "triggers_remedial": true, "remedial_priority": "recommended"},
+        {"id": "panel_date_time", "type": "pass_fail_note", "label": "Date / time correct", "required": true, "triggers_remedial": true, "remedial_priority": "advisory"},
+        {"id": "panel_log_entries", "type": "longtext", "label": "Outstanding log entries", "hint": "Note any unacknowledged events"}
+      ]
+    },
+    {
+      "id": "devices_tested",
+      "title": "Devices Tested This Visit",
+      "repeatable": true,
+      "repeat_label": "Zone",
+      "fields": [
+        {"id": "zone_number", "type": "text", "label": "Zone number / name", "required": true},
+        {"id": "devices_tested_count", "type": "number", "label": "Number of devices tested", "required": true},
+        {"id": "device_types", "type": "select", "label": "Device type", "options": ["heat detector", "smoke detector", "multi-sensor", "manual call point", "beam detector", "other"]},
+        {"id": "zone_result", "type": "pass_fail_note", "label": "Zone result", "triggers_remedial": true, "remedial_priority": "urgent"}
+      ]
+    },
+    {
+      "id": "sounders_vads",
+      "title": "Sounders / VADs",
+      "fields": [
+        {"id": "sounders_tested_count", "type": "number", "label": "Number of sounders tested"},
+        {"id": "vads_tested_count", "type": "number", "label": "Number of VADs tested"},
+        {"id": "sounders_vads_result", "type": "pass_fail_note", "label": "Sounders / VADs result", "triggers_remedial": true, "remedial_priority": "recommended"}
+      ]
+    },
+    {
+      "id": "cause_effect",
+      "title": "Cause and Effect",
+      "fields": [
+        {"id": "cause_effect_verified", "type": "yes_no_na", "label": "Cause and effect verified", "required": true, "triggers_remedial": true, "remedial_priority": "urgent", "hint": "Test at least one cause and effect sequence each visit"}
+      ]
+    },
+    {
+      "id": "batteries",
+      "title": "Batteries",
+      "fields": [
+        {"id": "battery_voltage_main", "type": "number", "label": "Main battery voltage (V)"},
+        {"id": "battery_voltage_standby", "type": "number", "label": "Standby battery voltage (V)"},
+        {"id": "battery_condition", "type": "pass_fail_note", "label": "Battery condition", "triggers_remedial": true, "remedial_priority": "recommended"}
+      ]
+    },
+    {
+      "id": "log_book",
+      "title": "Log Book",
+      "fields": [
+        {"id": "log_book_updated", "type": "yes_no_na", "label": "Log book updated", "required": true}
+      ]
+    },
+    {
+      "id": "faults_found",
+      "title": "Faults Found",
+      "fields": [
+        {"id": "faults_description", "type": "longtext", "label": "Describe any faults found during this visit"}
+      ]
+    },
+    {
+      "id": "remedials_section",
+      "title": "Remedials",
+      "fields": [
+        {"id": "remedials_free_text", "type": "longtext", "label": "Additional remedials not captured above (one per line)", "hint": "Each line becomes a separate remedial item"},
+        {"id": "additional_remedial_priority", "type": "select", "label": "Priority for above", "options": ["urgent", "recommended", "advisory"]}
+      ]
+    },
+    {
+      "id": "sign_off",
+      "title": "Sign-Off",
+      "fields": [
+        {"id": "photos", "type": "photo", "label": "Photos"},
+        {"id": "engineer_signature", "type": "signature", "label": "Engineer signature", "required": true},
+        {"id": "customer_name", "type": "text", "label": "Customer representative name"},
+        {"id": "customer_signature", "type": "signature", "label": "Customer signature"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "cctv_maintenance",
+  "name": "CCTV Maintenance",
+  "system_type": "cctv",
+  "job_type": "service",
+  "version": 1,
+  "sections": [
+    {
+      "id": "camera_checks",
+      "title": "Camera Checks",
+      "repeatable": true,
+      "repeat_label": "Camera",
+      "fields": [
+        {"id": "camera_id", "type": "text", "label": "Camera ID / location", "required": true},
+        {"id": "camera_view_clear", "type": "pass_fail_note", "label": "View clear and unobstructed", "triggers_remedial": true, "remedial_priority": "recommended"},
+        {"id": "camera_focus", "type": "pass_fail_note", "label": "Focus correct", "triggers_remedial": true, "remedial_priority": "recommended"},
+        {"id": "camera_ir_working", "type": "yes_no_na", "label": "IR / night vision working"},
+        {"id": "camera_housing_clean", "type": "yes_no_na", "label": "Housing / lens clean"}
+      ]
+    },
+    {
+      "id": "recorder_health",
+      "title": "Recorder Health",
+      "fields": [
+        {"id": "recorder_make_model", "type": "text", "label": "Recorder make / model"},
+        {"id": "recorder_hdd_status", "type": "pass_fail_note", "label": "HDD health", "triggers_remedial": true, "remedial_priority": "urgent", "hint": "Check HDD health status in recorder settings"},
+        {"id": "hdd_retention_days", "type": "number", "label": "Recording retention (days)", "hint": "Minimum requirement is usually 28–31 days"},
+        {"id": "recorder_time_date_correct", "type": "yes_no_na", "label": "Time and date correct", "triggers_remedial": true, "remedial_priority": "advisory"},
+        {"id": "remote_access_working", "type": "yes_no_na", "label": "Remote access / mobile app working", "triggers_remedial": true, "remedial_priority": "recommended"}
+      ]
+    },
+    {
+      "id": "remedials_section",
+      "title": "Remedials",
+      "fields": [
+        {"id": "remedials_free_text", "type": "longtext", "label": "Additional remedials (one per line)", "hint": "Each line becomes a separate remedial item"},
+        {"id": "remedial_priority", "type": "select", "label": "Priority", "options": ["urgent", "recommended", "advisory"]}
+      ]
+    },
+    {
+      "id": "sign_off",
+      "title": "Sign-Off",
+      "fields": [
+        {"id": "photos", "type": "photo", "label": "Photos"},
+        {"id": "engineer_signature", "type": "signature", "label": "Engineer signature", "required": true},
+        {"id": "customer_name", "type": "text", "label": "Customer representative name"},
+        {"id": "customer_signature", "type": "signature", "label": "Customer signature"}
+      ]
+    }
+  ]
+}
