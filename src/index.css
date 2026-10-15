@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* Global mobile-first defaults */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f9fafb;
+  color: #111827;
+}
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Signature pad canvas */
+.signature-pad canvas {
+  touch-action: none;
+}
