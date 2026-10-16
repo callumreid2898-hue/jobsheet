@@ -1,5 +1,51 @@
 @import "tailwindcss";
 
+:root {
+  --guardian-primary:        #0D3349;
+  --guardian-primary-hover:  #0f3d57;
+  --guardian-primary-light:  #E8F0F5;
+  --guardian-accent:         #DC2626;
+  --guardian-accent-hover:   #b91c1c;
+
+  --guardian-bg:             #F8FAFC;
+  --guardian-surface:        #FFFFFF;
+  --guardian-border:         #E2E8F0;
+  --guardian-border-strong:  #CBD5E1;
+  --guardian-text:           #0F172A;
+  --guardian-text-muted:     #475569;
+  --guardian-text-faint:     #94A3B8;
+
+  /* Job Status */
+  --status-unassigned:       #94A3B8;
+  --status-scheduled:        #3B82F6;
+  --status-travelling:       #F59E0B;
+  --status-on-site:          #10B981;
+  --status-completed:        #22C55E;
+  --status-awaiting-review:  #F97316;
+  --status-reviewed:         #8B5CF6;
+  --status-invoiced:         #0891B2;
+  --status-cancelled:        #EF4444;
+
+  /* Remedial Priority */
+  --priority-urgent:         #EF4444;
+  --priority-recommended:    #F97316;
+  --priority-advisory:       #EAB308;
+
+  /* Spacing (4px grid) */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+
+  /* Radius */
+  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.10), 0 1px 2px -1px rgb(0 0 0 / 0.10);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.10), 0 2px 4px -2px rgb(0 0 0 / 0.10);
+
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
 /* Global mobile-first defaults */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -7,13 +53,13 @@
 
 html {
   -webkit-text-size-adjust: 100%;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 body {
   margin: 0;
-  background: #f9fafb;
-  color: #111827;
+  background: var(--guardian-bg);
+  color: var(--guardian-text);
 }
 
 #root {

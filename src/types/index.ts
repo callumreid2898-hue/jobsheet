@@ -14,9 +14,25 @@ export type SystemType =
   | 'intruder'
   | 'access_control';
 
-export type JobType = 'service' | 'reactive' | 'install';
+export type JobType =
+  | 'reactive_callout'
+  | 'ppm_service'
+  | 'install'
+  | 'remedial_works'
+  | 'survey';
 
-export type JobStatus = 'scheduled' | 'in_progress' | 'submitted' | 'reviewed';
+export type JobStatus =
+  | 'unassigned'
+  | 'scheduled'
+  | 'travelling'
+  | 'on_site'
+  | 'completed'
+  | 'awaiting_review'
+  | 'reviewed'
+  | 'invoiced'
+  | 'cancelled';
+
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'void';
 
 export type RemedialPriority = 'urgent' | 'recommended' | 'advisory';
 
@@ -50,6 +66,12 @@ export interface Profile {
   created_at: string;
 }
 
+export interface KeyholderEntry {
+  name: string;
+  phone: string;
+  order: number;
+}
+
 export interface Customer {
   id: string;
   company_id: string;
@@ -57,7 +79,10 @@ export interface Customer {
   contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  billing_address: string | null;
+  notes: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Site {
@@ -68,6 +93,11 @@ export interface Site {
   contact_name: string | null;
   contact_phone: string | null;
   access_notes: string | null;
+  arc_name: string | null;
+  arc_account: string | null;
+  police_urn: string | null;
+  hazards: string | null;
+  keyholders: KeyholderEntry[];
   created_at: string;
 }
 
@@ -80,6 +110,11 @@ export interface System {
   model: string | null;
   panel_location: string | null;
   notes: string | null;
+  zones_count: number | null;
+  loops_count: number | null;
+  num_cameras: number | null;
+  retention_days: number | null;
+  grade: string | null;
   created_at: string;
 }
 
@@ -94,6 +129,9 @@ export interface Job {
   scheduled_date: string; // 'YYYY-MM-DD'
   status: JobStatus;
   notes: string | null;
+  travelling_at: string | null;
+  on_site_at: string | null;
+  completed_at: string | null;
   created_at: string;
 }
 
@@ -141,6 +179,54 @@ export interface AuditLog {
   action: string;
   entity_type: string;
   entity_id: string;
+  created_at: string;
+}
+
+// ─── Job Lines (Parts & Labour) ───────────────────────────────────────────────
+
+export type JobLineType = 'labour' | 'part' | 'other';
+
+export interface JobLine {
+  id: string;
+  job_id: string;
+  company_id: string;
+  line_type: JobLineType;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  vat_rate: number;
+  sort_order: number;
+  created_at: string;
+}
+
+// ─── Invoices ─────────────────────────────────────────────────────────────────
+
+export interface Invoice {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  site_id: string;
+  job_id: string | null;
+  quote_id: string | null;
+  reference: string;
+  status: InvoiceStatus;
+  notes: string | null;
+  issued_date: string | null;
+  due_date: string | null;
+  paid_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceLine {
+  id: string;
+  invoice_id: string;
+  company_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  vat_rate: number;
+  sort_order: number;
   created_at: string;
 }
 

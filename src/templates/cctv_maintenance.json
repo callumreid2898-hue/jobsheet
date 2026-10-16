@@ -2,7 +2,7 @@
   "id": "cctv_maintenance",
   "name": "CCTV Maintenance",
   "system_type": "cctv",
-  "job_type": "service",
+  "job_type": "ppm_service",
   "version": 1,
   "sections": [
     {

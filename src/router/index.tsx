@@ -4,16 +4,18 @@ import { useAuth } from '../auth/AuthProvider';
 import { AppShell } from '../components/layout/AppShell';
 import { LoginPage } from '../auth/LoginPage';
 import { AuthCallbackPage } from '../auth/AuthCallbackPage';
+
+// Engineer pages
 import { EngineerJobsPage } from '../pages/engineer/EngineerJobsPage';
 import { EngineerJobDetailPage } from '../pages/engineer/EngineerJobDetailPage';
 import { FillJobsheetPage } from '../pages/engineer/FillJobsheetPage';
 import { JobSubmittedPage } from '../pages/engineer/JobSubmittedPage';
+import { TodayPage } from '../pages/engineer/TodayPage';
+
+// Manager pages — existing
 import { ManagerJobsListPage } from '../pages/manager/ManagerJobsListPage';
 import { CreateJobPage } from '../pages/manager/CreateJobPage';
-import { AssignEngineerPage } from '../pages/manager/AssignEngineerPage';
-import { ReviewJobsheetPage } from '../pages/manager/ReviewJobsheetPage';
 import { RemedialsListPage } from '../pages/manager/RemedialsListPage';
-import { SiteHistoryPage } from '../pages/manager/SiteHistoryPage';
 import { SitesPage } from '../pages/manager/SitesPage';
 import { CreateSitePage } from '../pages/manager/CreateSitePage';
 import { SettingsPage } from '../pages/manager/SettingsPage';
@@ -27,12 +29,36 @@ import { SiteDevicesPage } from '../pages/manager/SiteDevicesPage';
 import { AddDevicePage } from '../pages/manager/AddDevicePage';
 import { DeviceDetailPage } from '../pages/manager/DeviceDetailPage';
 import { DeviceQRPage } from '../pages/manager/DeviceQRPage';
+
+// Manager pages — Phase 4 new
+import { DashboardPage } from '../pages/manager/DashboardPage';
+import { PlannerPage } from '../pages/manager/PlannerPage';
+import { JobDetailPage } from '../pages/manager/JobDetailPage';
+import { CustomersListPage } from '../pages/manager/CustomersListPage';
+import { CustomerDetailPage } from '../pages/manager/CustomerDetailPage';
+import { SiteDetailPage } from '../pages/manager/SiteDetailPage';
+import { SystemDetailPage } from '../pages/manager/SystemDetailPage';
+import { InvoicesListPage } from '../pages/manager/InvoicesListPage';
+import { CreateInvoicePage } from '../pages/manager/CreateInvoicePage';
+import { InvoiceDetailPage } from '../pages/manager/InvoiceDetailPage';
+import { ReportsPage } from '../pages/manager/ReportsPage';
+import { ImportPage } from '../pages/manager/ImportPage';
+
+// Shared pages
 import { ScannerPage } from '../pages/ScannerPage';
 
 function RootRedirect() {
   const { profile } = useAuth();
-  if (profile?.role === 'manager') return <Navigate to="/manager/jobs" replace />;
-  return <Navigate to="/jobs" replace />;
+  if (profile?.role === 'manager') return <Navigate to="/manager/dashboard" replace />;
+  return <Navigate to="/today" replace />;
+}
+
+function M({ children }: { children: React.ReactNode }) {
+  return <AuthGuard requiredRole="manager"><AppShell>{children}</AppShell></AuthGuard>;
+}
+
+function E({ children }: { children: React.ReactNode }) {
+  return <AuthGuard requiredRole="engineer"><AppShell>{children}</AppShell></AuthGuard>;
 }
 
 export function AppRoutes() {
@@ -42,39 +68,76 @@ export function AppRoutes() {
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/" element={<AuthGuard><RootRedirect /></AuthGuard>} />
 
-      <Route path="/jobs" element={<AuthGuard requiredRole="engineer"><AppShell><EngineerJobsPage /></AppShell></AuthGuard>} />
-      <Route path="/jobs/:jobId" element={<AuthGuard requiredRole="engineer"><AppShell><EngineerJobDetailPage /></AppShell></AuthGuard>} />
-      <Route path="/jobs/:jobId/fill" element={<AuthGuard requiredRole="engineer"><AppShell><FillJobsheetPage /></AppShell></AuthGuard>} />
-      <Route path="/jobs/:jobId/submitted" element={<AuthGuard requiredRole="engineer"><AppShell><JobSubmittedPage /></AppShell></AuthGuard>} />
+      {/* ── Engineer routes ─────────────────────────────────────── */}
+      <Route path="/today" element={<E><TodayPage /></E>} />
+      <Route path="/jobs" element={<E><EngineerJobsPage /></E>} />
+      <Route path="/jobs/:jobId" element={<E><EngineerJobDetailPage /></E>} />
+      <Route path="/jobs/:jobId/fill" element={<E><FillJobsheetPage /></E>} />
+      <Route path="/jobs/:jobId/submitted" element={<E><JobSubmittedPage /></E>} />
 
-      <Route path="/manager" element={<Navigate to="/manager/jobs" replace />} />
-      <Route path="/manager/jobs" element={<AuthGuard requiredRole="manager"><AppShell><ManagerJobsListPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/jobs/create" element={<AuthGuard requiredRole="manager"><AppShell><CreateJobPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/jobs/:jobId/assign" element={<AuthGuard requiredRole="manager"><AppShell><AssignEngineerPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/jobs/:jobId/review" element={<AuthGuard requiredRole="manager"><AppShell><ReviewJobsheetPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/remedials" element={<AuthGuard requiredRole="manager"><AppShell><RemedialsListPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/sites" element={<AuthGuard requiredRole="manager"><AppShell><SitesPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/sites/create" element={<AuthGuard requiredRole="manager"><AppShell><CreateSitePage /></AppShell></AuthGuard>} />
-      <Route path="/manager/sites/:siteId/history" element={<AuthGuard requiredRole="manager"><AppShell><SiteHistoryPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/settings" element={<AuthGuard requiredRole="manager"><AppShell><SettingsPage /></AppShell></AuthGuard>} />
+      {/* ── Manager root redirect ───────────────────────────────── */}
+      <Route path="/manager" element={<Navigate to="/manager/dashboard" replace />} />
 
-      {/* Phase 3 — Contracts */}
-      <Route path="/manager/contracts" element={<AuthGuard requiredRole="manager"><AppShell><ContractsListPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/contracts/create" element={<AuthGuard requiredRole="manager"><AppShell><CreateContractPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/contracts/:contractId" element={<AuthGuard requiredRole="manager"><AppShell><ContractDetailPage /></AppShell></AuthGuard>} />
+      {/* ── Manager dashboard & planner ────────────────────────── */}
+      <Route path="/manager/dashboard" element={<M><DashboardPage /></M>} />
+      <Route path="/manager/planner" element={<M><PlannerPage /></M>} />
 
-      {/* Phase 3 — Quotes */}
-      <Route path="/manager/quotes" element={<AuthGuard requiredRole="manager"><AppShell><QuotesListPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/quotes/create" element={<AuthGuard requiredRole="manager"><AppShell><CreateQuotePage /></AppShell></AuthGuard>} />
-      <Route path="/manager/quotes/:quoteId" element={<AuthGuard requiredRole="manager"><AppShell><QuoteDetailPage /></AppShell></AuthGuard>} />
+      {/* ── Manager jobs ───────────────────────────────────────── */}
+      <Route path="/manager/jobs" element={<M><ManagerJobsListPage /></M>} />
+      <Route path="/manager/jobs/create" element={<M><CreateJobPage /></M>} />
+      <Route path="/manager/jobs/:jobId" element={<M><JobDetailPage /></M>} />
 
-      {/* Phase 3 — Device Asset Register */}
-      <Route path="/manager/sites/:siteId/devices" element={<AuthGuard requiredRole="manager"><AppShell><SiteDevicesPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/sites/:siteId/devices/add" element={<AuthGuard requiredRole="manager"><AppShell><AddDevicePage /></AppShell></AuthGuard>} />
-      <Route path="/manager/sites/:siteId/devices/:deviceId" element={<AuthGuard requiredRole="manager"><AppShell><DeviceDetailPage /></AppShell></AuthGuard>} />
-      <Route path="/manager/sites/:siteId/devices/:deviceId/qr" element={<AuthGuard requiredRole="manager"><AppShell><DeviceQRPage /></AppShell></AuthGuard>} />
+      {/* Legacy redirects for assign/review */}
+      <Route path="/manager/jobs/:jobId/assign" element={<AuthGuard requiredRole="manager"><Navigate to="../" replace /></AuthGuard>} />
+      <Route path="/manager/jobs/:jobId/review" element={<AuthGuard requiredRole="manager"><Navigate to="../" replace /></AuthGuard>} />
 
-      {/* Phase 3 — QR Scanner (both roles) */}
+      {/* ── Manager remedials ──────────────────────────────────── */}
+      <Route path="/manager/remedials" element={<M><RemedialsListPage /></M>} />
+
+      {/* ── Manager customers ──────────────────────────────────── */}
+      <Route path="/manager/customers" element={<M><CustomersListPage /></M>} />
+      <Route path="/manager/customers/:customerId" element={<M><CustomerDetailPage /></M>} />
+
+      {/* ── Manager sites ──────────────────────────────────────── */}
+      <Route path="/manager/sites" element={<M><SitesPage /></M>} />
+      <Route path="/manager/sites/create" element={<M><CreateSitePage /></M>} />
+      <Route path="/manager/sites/:siteId" element={<M><SiteDetailPage /></M>} />
+
+      {/* Legacy redirect for site history */}
+      <Route path="/manager/sites/:siteId/history" element={<AuthGuard requiredRole="manager"><Navigate to="../" replace /></AuthGuard>} />
+
+      {/* ── Manager sites → systems ────────────────────────────── */}
+      <Route path="/manager/systems/:systemId" element={<M><SystemDetailPage /></M>} />
+
+      {/* ── Manager sites → devices ────────────────────────────── */}
+      <Route path="/manager/sites/:siteId/devices" element={<M><SiteDevicesPage /></M>} />
+      <Route path="/manager/sites/:siteId/devices/add" element={<M><AddDevicePage /></M>} />
+      <Route path="/manager/sites/:siteId/devices/:deviceId" element={<M><DeviceDetailPage /></M>} />
+      <Route path="/manager/sites/:siteId/devices/:deviceId/qr" element={<M><DeviceQRPage /></M>} />
+
+      {/* ── Manager contracts ──────────────────────────────────── */}
+      <Route path="/manager/contracts" element={<M><ContractsListPage /></M>} />
+      <Route path="/manager/contracts/create" element={<M><CreateContractPage /></M>} />
+      <Route path="/manager/contracts/:contractId" element={<M><ContractDetailPage /></M>} />
+
+      {/* ── Manager quotes ─────────────────────────────────────── */}
+      <Route path="/manager/quotes" element={<M><QuotesListPage /></M>} />
+      <Route path="/manager/quotes/create" element={<M><CreateQuotePage /></M>} />
+      <Route path="/manager/quotes/:quoteId" element={<M><QuoteDetailPage /></M>} />
+
+      {/* ── Manager invoices ───────────────────────────────────── */}
+      <Route path="/manager/invoices" element={<M><InvoicesListPage /></M>} />
+      <Route path="/manager/invoices/create" element={<M><CreateInvoicePage /></M>} />
+      <Route path="/manager/invoices/:invoiceId" element={<M><InvoiceDetailPage /></M>} />
+
+      {/* ── Manager reports & import ───────────────────────────── */}
+      <Route path="/manager/reports" element={<M><ReportsPage /></M>} />
+      <Route path="/manager/import" element={<M><ImportPage /></M>} />
+
+      {/* ── Manager settings ───────────────────────────────────── */}
+      <Route path="/manager/settings" element={<M><SettingsPage /></M>} />
+
+      {/* ── QR Scanner (both roles) ────────────────────────────── */}
       <Route path="/scan" element={<AuthGuard><AppShell><ScannerPage /></AppShell></AuthGuard>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { db } from '../../lib/db';
+import { enqueueSync } from '../../offline/SyncQueue';
 import { useAuth } from '../../auth/AuthProvider';
 import { Spinner } from '../../components/ui/Spinner';
 import type { Quote, QuoteLine, QuoteStatus, Site } from '../../types';
@@ -32,6 +33,7 @@ export function QuoteDetailPage() {
   const [addingLine, setAddingLine] = useState(false);
   const [savingLine, setSavingLine] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [sendingQuote, setSendingQuote] = useState(false);
 
   async function load() {
     if (!quoteId) return;
@@ -109,6 +111,25 @@ export function QuoteDetailPage() {
     setSavingLine(false);
   }
 
+  async function handleSendQuote() {
+    if (!quote || !quoteId) return;
+    setSendingQuote(true);
+    const subject = encodeURIComponent(`Quote ${quote.reference}`);
+    const body    = encodeURIComponent('Please find your quote attached.');
+    const mailtoUrl = `mailto:?subject=${subject}&body=${body}`;
+    window.open(mailtoUrl);
+
+    if (quote.status === 'draft') {
+      const now = new Date().toISOString();
+      const updated = { ...quote, status: 'sent' as QuoteStatus, updated_at: now };
+      await db.quotes.put(updated).catch(() => {});
+      await supabase.from('quotes').update({ status: 'sent', updated_at: now }).eq('id', quoteId);
+      await enqueueSync({ table: 'quotes', operation: 'upsert', payload: updated as unknown as Record<string, unknown> });
+      setQuote(updated);
+    }
+    setSendingQuote(false);
+  }
+
   if (isLoading) {
     return <div className="flex justify-center py-16"><Spinner /></div>;
   }
@@ -140,28 +161,45 @@ export function QuoteDetailPage() {
       )}
 
       {/* Status actions */}
-      {(quote.status === 'draft' || quote.status === 'sent') && (
-        <div className="flex gap-2 mb-6">
-          {quote.status === 'draft' && (
-            <button onClick={() => updateStatus('sent')} disabled={updatingStatus}
-              className="flex-1 bg-blue-600 text-white text-sm font-medium py-2.5 rounded-xl disabled:opacity-60">
-              Mark Sent
+      <div className="flex flex-wrap gap-2 mb-6">
+        {/* Send Quote button — always visible for draft/sent */}
+        {(quote.status === 'draft' || quote.status === 'sent') && (
+          <button
+            onClick={handleSendQuote}
+            disabled={sendingQuote || updatingStatus}
+            className="flex-1 border border-[#0D3349] text-[#0D3349] text-sm font-medium py-2.5 rounded-xl disabled:opacity-60 hover:bg-[#0D3349] hover:text-white transition-colors"
+          >
+            Send Quote
+          </button>
+        )}
+        {quote.status === 'draft' && (
+          <button onClick={() => updateStatus('sent')} disabled={updatingStatus}
+            className="flex-1 bg-blue-600 text-white text-sm font-medium py-2.5 rounded-xl disabled:opacity-60">
+            Mark Sent
+          </button>
+        )}
+        {quote.status === 'sent' && (
+          <>
+            <button onClick={() => updateStatus('accepted')} disabled={updatingStatus}
+              className="flex-1 bg-green-600 text-white text-sm font-medium py-2.5 rounded-xl disabled:opacity-60">
+              Mark Accepted
             </button>
-          )}
-          {quote.status === 'sent' && (
-            <>
-              <button onClick={() => updateStatus('accepted')} disabled={updatingStatus}
-                className="flex-1 bg-green-600 text-white text-sm font-medium py-2.5 rounded-xl disabled:opacity-60">
-                Mark Accepted
-              </button>
-              <button onClick={() => updateStatus('rejected')} disabled={updatingStatus}
-                className="flex-1 bg-red-500 text-white text-sm font-medium py-2.5 rounded-xl disabled:opacity-60">
-                Mark Rejected
-              </button>
-            </>
-          )}
-        </div>
-      )}
+            <button onClick={() => updateStatus('rejected')} disabled={updatingStatus}
+              className="flex-1 bg-red-500 text-white text-sm font-medium py-2.5 rounded-xl disabled:opacity-60">
+              Mark Rejected
+            </button>
+          </>
+        )}
+        {/* Create Invoice button — visible when accepted */}
+        {quote.status === 'accepted' && (
+          <button
+            onClick={() => navigate(`/manager/invoices/create?quoteId=${quote.id}`)}
+            className="flex-1 bg-[#0D3349] text-white text-sm font-medium py-2.5 rounded-xl hover:bg-[#0D3349]/90 transition-colors"
+          >
+            Create Invoice
+          </button>
+        )}
+      </div>
 
       {/* Lines */}
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm mb-4">

@@ -35,7 +35,9 @@ export function CreateSitePage() {
       const newCustomer: Customer = {
         id: crypto.randomUUID(), company_id: profile.company_id,
         name: form.new_customer_name, contact_name: null, contact_email: null, contact_phone: null,
+        billing_address: null, notes: null,
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
       await db.customers.put(newCustomer).catch(() => {});
       await supabase.from('customers').insert(newCustomer);
@@ -46,6 +48,7 @@ export function CreateSitePage() {
       id: crypto.randomUUID(), company_id: profile.company_id, customer_id: customerId,
       address: form.address, contact_name: form.contact_name || null,
       contact_phone: form.contact_phone || null, access_notes: form.access_notes || null,
+      arc_name: null, arc_account: null, police_urn: null, hazards: null, keyholders: [],
       created_at: new Date().toISOString(),
     };
     await db.sites.put(site).catch(() => {});
@@ -56,6 +59,7 @@ export function CreateSitePage() {
         id: crypto.randomUUID(), site_id: site.id, company_id: profile.company_id,
         type: form.system_type, make: form.system_make || null, model: form.system_model || null,
         panel_location: form.panel_location || null, notes: null,
+        zones_count: null, loops_count: null, num_cameras: null, retention_days: null, grade: null,
         created_at: new Date().toISOString(),
       };
       await db.systems.put(system).catch(() => {});

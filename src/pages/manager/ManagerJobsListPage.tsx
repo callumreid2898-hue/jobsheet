@@ -30,10 +30,15 @@ export function ManagerJobsListPage() {
         className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm mb-4 bg-white"
       >
         <option value="">All statuses</option>
+        <option value="unassigned">Unassigned</option>
         <option value="scheduled">Scheduled</option>
-        <option value="in_progress">In Progress</option>
-        <option value="submitted">Submitted</option>
+        <option value="travelling">Travelling</option>
+        <option value="on_site">On Site</option>
+        <option value="completed">Completed</option>
+        <option value="awaiting_review">Awaiting Review</option>
         <option value="reviewed">Reviewed</option>
+        <option value="invoiced">Invoiced</option>
+        <option value="cancelled">Cancelled</option>
       </select>
 
       {isLoading ? (
@@ -47,7 +52,7 @@ export function ManagerJobsListPage() {
             if (!site) return null;
             const engineer = profiles.find(p => p.id === job.assigned_engineer_id);
             return (
-              <div key={job.id} onClick={() => navigate(job.status === 'submitted' || job.status === 'reviewed' ? `/manager/jobs/${job.id}/review` : `/manager/jobs/${job.id}/assign`)} className="cursor-pointer">
+              <div key={job.id} onClick={() => navigate(`/manager/jobs/${job.id}`)} className="cursor-pointer">
                 <JobCard job={job} site={site} />
                 {engineer && <p className="text-xs text-gray-400 px-1 mt-1">Engineer: {engineer.full_name}</p>}
               </div>

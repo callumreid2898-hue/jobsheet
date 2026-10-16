@@ -84,7 +84,7 @@ export function ReviewJobsheetPage() {
         ) : (
           <span className="text-xs text-gray-400 italic">PDF generating…</span>
         )}
-        {job.status === 'submitted' && (
+        {job.status === 'awaiting_review' && (
           <button onClick={markReviewed} disabled={marking} className="bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-60">
             {marking ? 'Saving…' : 'Mark Reviewed'}
           </button>

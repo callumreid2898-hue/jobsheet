@@ -2,7 +2,7 @@
   "id": "reactive_callout",
   "name": "Reactive Callout",
   "system_type": null,
-  "job_type": "reactive",
+  "job_type": "reactive_callout",
   "version": 1,
   "sections": [
     {

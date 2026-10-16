@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 interface ButtonProps {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'teal';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   disabled?: boolean;
@@ -13,10 +13,11 @@ interface ButtonProps {
 }
 
 const variantClasses = {
-  primary: 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800',
+  primary:   'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800',
   secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 active:bg-gray-300',
-  danger: 'bg-red-500 text-white hover:bg-red-600 active:bg-red-700',
-  ghost: 'bg-transparent text-blue-600 hover:bg-blue-50 active:bg-blue-100',
+  danger:    'bg-red-500 text-white hover:bg-red-600 active:bg-red-700',
+  ghost:     'bg-transparent text-blue-600 hover:bg-blue-50 active:bg-blue-100',
+  teal:      'bg-[#0D3349] text-white hover:bg-[#0f3d57] active:bg-[#0a2535]',
 };
 
 const sizeClasses = {

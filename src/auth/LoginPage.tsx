@@ -24,11 +24,11 @@ export function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-[#0D3349] rounded-2xl flex items-center justify-center mx-auto mb-4">
             <span className="text-white text-2xl">🔒</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Jobsheet Pro</h1>
-          <p className="text-gray-500 mt-1">Sign in to your account</p>
+          <h1 className="text-2xl font-bold text-[#0D3349]">GuardianFSM</h1>
+          <p className="text-slate-500 mt-1 text-sm">Field service, built for fire &amp; security.</p>
         </div>
 
         {sent ? (
@@ -51,14 +51,14 @@ export function LoginPage() {
                 required
                 autoComplete="email"
                 placeholder="you@example.com"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0D3349]"
               />
             </div>
             {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl text-base hover:bg-blue-700 active:bg-blue-800 disabled:opacity-60"
+              className="w-full bg-[#0D3349] text-white font-semibold py-3 rounded-xl text-base hover:bg-[#0f3d57] active:bg-[#0D3349] disabled:opacity-60"
             >
               {loading ? 'Sending…' : 'Send magic link'}
             </button>

@@ -111,7 +111,7 @@ export function FillJobsheetPage() {
     await enqueueSync({ table: 'jobsheets', operation: 'upsert', payload: updatedJs as unknown as Record<string, unknown> });
 
     // Update job status
-    const updatedJob: Job = { ...job, status: 'submitted' };
+    const updatedJob: Job = { ...job, status: 'awaiting_review' };
     await db.jobs.put(updatedJob).catch(() => {});
     await enqueueSync({ table: 'jobs', operation: 'upsert', payload: updatedJob as unknown as Record<string, unknown> });
 

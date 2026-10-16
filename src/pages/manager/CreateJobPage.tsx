@@ -26,7 +26,7 @@ export function CreateJobPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     customer_id: '', site_id: '', system_id: '',
-    type: 'service' as JobType,
+    type: 'ppm_service' as JobType,
     template_id: 'fire_alarm_service' as TemplateId,
     assigned_engineer_id: '',
     scheduled_date: new Date().toISOString().split('T')[0],
@@ -49,8 +49,11 @@ export function CreateJobPage() {
       template_id: form.template_id,
       assigned_engineer_id: form.assigned_engineer_id || null,
       scheduled_date: form.scheduled_date,
-      status: 'scheduled',
+      status: form.assigned_engineer_id ? 'scheduled' : 'unassigned',
       notes: form.notes || null,
+      travelling_at: null,
+      on_site_at: null,
+      completed_at: null,
       created_at: new Date().toISOString(),
     };
     await db.jobs.put(job).catch(() => {});
@@ -94,9 +97,11 @@ export function CreateJobPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Job type</label>
           <select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value as JobType}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">
-            <option value="service">Service</option>
-            <option value="reactive">Reactive</option>
+            <option value="ppm_service">PPM Service</option>
+            <option value="reactive_callout">Reactive Callout</option>
             <option value="install">Install</option>
+            <option value="remedial_works">Remedial Works</option>
+            <option value="survey">Survey</option>
           </select>
         </div>
         <div>

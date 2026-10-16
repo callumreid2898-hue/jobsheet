@@ -58,7 +58,7 @@ export function EngineerJobDetailPage() {
 
   async function startJob() {
     if (!job || !profile) return;
-    const updated: Job = { ...job, status: 'in_progress' };
+    const updated: Job = { ...job, status: 'on_site', on_site_at: new Date().toISOString() };
     await db.jobs.put(updated);
     setJob(updated);
     await enqueueSync({ table: 'jobs', operation: 'upsert', payload: updated as unknown as Record<string, unknown> });
@@ -119,12 +119,12 @@ export function EngineerJobDetailPage() {
             Start Job
           </button>
         )}
-        {job.status === 'in_progress' && (
+        {job.status === 'on_site' && (
           <button onClick={() => navigate(`/jobs/${job.id}/fill`)} className="w-full bg-blue-600 text-white font-semibold py-3.5 rounded-xl text-base active:bg-blue-700">
             Continue Jobsheet
           </button>
         )}
-        {job.status === 'submitted' && (
+        {job.status === 'awaiting_review' && (
           <div className="text-center py-3 text-green-600 font-medium">✓ Jobsheet submitted</div>
         )}
       </div>

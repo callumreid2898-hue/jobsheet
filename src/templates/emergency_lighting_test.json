@@ -2,7 +2,7 @@
   "id": "emergency_lighting_test",
   "name": "Emergency Lighting Test",
   "system_type": "emergency_lighting",
-  "job_type": "service",
+  "job_type": "ppm_service",
   "version": 1,
   "sections": [
     {

@@ -6,6 +6,7 @@ import type {
   Site,
   System,
   Job,
+  JobLine,
   Jobsheet,
   Remedial,
   SyncQueueItem,
@@ -17,6 +18,8 @@ import type {
   Quote,
   QuoteLine,
   PriceListItem,
+  Invoice,
+  InvoiceLine,
 } from '../types';
 
 export class AppDB extends Dexie {
@@ -26,6 +29,7 @@ export class AppDB extends Dexie {
   sites!: Table<Site>;
   systems!: Table<System>;
   jobs!: Table<Job>;
+  job_lines!: Table<JobLine>;
   jobsheets!: Table<Jobsheet>;
   photos!: Table<PhotoLocal>;
   remedials!: Table<Remedial>;
@@ -37,6 +41,8 @@ export class AppDB extends Dexie {
   quotes!: Table<Quote>;
   quote_lines!: Table<QuoteLine>;
   price_list_items!: Table<PriceListItem>;
+  invoices!: Table<Invoice>;
+  invoice_lines!: Table<InvoiceLine>;
 
   constructor() {
     super('jobsheet-pwa');
@@ -62,6 +68,13 @@ export class AppDB extends Dexie {
       quotes:           'id, company_id, site_id, remedial_id, status',
       quote_lines:      'id, quote_id',
       price_list_items: 'id, company_id',
+    });
+
+    this.version(3).stores({
+      jobs:          'id, company_id, site_id, assigned_engineer_id, scheduled_date, status, template_id, type',
+      job_lines:     'id, job_id, company_id',
+      invoices:      'id, company_id, customer_id, site_id, job_id, quote_id, status, due_date',
+      invoice_lines: 'id, invoice_id, company_id',
     });
   }
 }
