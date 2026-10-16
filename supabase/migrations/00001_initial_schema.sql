@@ -161,3 +161,9 @@ drop trigger if exists remedials_updated_at on remedials;
 create trigger remedials_updated_at
   before update on remedials
   for each row execute procedure update_updated_at_column();
+
+-- ── Role grants (PostgREST schema introspection requires these) ───────────────
+grant usage on schema public to anon, authenticated;
+grant all on all tables in schema public to anon, authenticated;
+grant all on all sequences in schema public to anon, authenticated;
+grant execute on all functions in schema public to anon, authenticated;
