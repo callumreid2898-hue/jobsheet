@@ -18,8 +18,10 @@
     "@supabase/supabase-js": "^2.118.0",
     "dexie": "^4.4.6",
     "dexie-react-hooks": "^4.4.0",
+    "html5-qrcode": "^2.3.8",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-qr-code": "^2.2.0",
     "react-router-dom": "^7.18.4",
     "signature_pad": "^5.1.4"
   },

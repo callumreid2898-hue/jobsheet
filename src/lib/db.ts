@@ -10,6 +10,13 @@ import type {
   Remedial,
   SyncQueueItem,
   PhotoLocal,
+  Contract,
+  ContractVisit,
+  Device,
+  DeviceTest,
+  Quote,
+  QuoteLine,
+  PriceListItem,
 } from '../types';
 
 export class AppDB extends Dexie {
@@ -23,6 +30,13 @@ export class AppDB extends Dexie {
   photos!: Table<PhotoLocal>;
   remedials!: Table<Remedial>;
   sync_queue!: Table<SyncQueueItem>;
+  contracts!: Table<Contract>;
+  contract_visits!: Table<ContractVisit>;
+  devices!: Table<Device>;
+  device_tests!: Table<DeviceTest>;
+  quotes!: Table<Quote>;
+  quote_lines!: Table<QuoteLine>;
+  price_list_items!: Table<PriceListItem>;
 
   constructor() {
     super('jobsheet-pwa');
@@ -38,6 +52,16 @@ export class AppDB extends Dexie {
       photos: 'id, jobsheet_id, company_id',
       remedials: 'id, jobsheet_id, site_id, company_id, status, priority',
       sync_queue: 'id, table, operation, created_at, attempts',
+    });
+
+    this.version(2).stores({
+      contracts:        'id, company_id, site_id, status',
+      contract_visits:  'id, contract_id, company_id, status, scheduled_date',
+      devices:          'id, site_id, company_id, qr_code',
+      device_tests:     'id, device_id, jobsheet_id',
+      quotes:           'id, company_id, site_id, remedial_id, status',
+      quote_lines:      'id, quote_id',
+      price_list_items: 'id, company_id',
     });
   }
 }

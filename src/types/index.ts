@@ -218,3 +218,102 @@ export type RemedialCreate = Omit<Remedial, 'id' | 'created_at' | 'updated_at' |
 export interface PhotoLocal extends Photo {
   blob?: Blob;
 }
+
+// ─── Phase 3: Contracts ───────────────────────────────────────────────────────
+
+export type ContractStatus = 'active' | 'paused' | 'expired';
+export type VisitFrequency = 'monthly' | 'quarterly' | 'biannual' | 'annual';
+export type ContractVisitStatus = 'pending' | 'scheduled' | 'complete';
+
+export interface Contract {
+  id: string;
+  company_id: string;
+  site_id: string;
+  system_id: string | null;
+  customer_id: string;
+  reference: string | null;
+  system_type: SystemType;
+  visit_frequency: VisitFrequency;
+  next_visit_due: string | null; // 'YYYY-MM-DD'
+  status: ContractStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContractVisit {
+  id: string;
+  contract_id: string;
+  company_id: string;
+  job_id: string | null;
+  scheduled_date: string; // 'YYYY-MM-DD'
+  status: ContractVisitStatus;
+  created_at: string;
+}
+
+// ─── Phase 3: Devices (Asset Register) ───────────────────────────────────────
+
+export type DeviceTestResult = 'pass' | 'fail' | 'not_tested';
+
+export interface Device {
+  id: string;
+  site_id: string;
+  company_id: string;
+  system_id: string | null;
+  type: string;
+  location: string | null;
+  make: string | null;
+  model: string | null;
+  serial_number: string | null;
+  install_date: string | null; // 'YYYY-MM-DD'
+  qr_code: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface DeviceTest {
+  id: string;
+  device_id: string;
+  jobsheet_id: string | null;
+  company_id: string;
+  result: DeviceTestResult;
+  note: string | null;
+  tested_at: string;
+}
+
+// ─── Phase 3: Quotes ─────────────────────────────────────────────────────────
+
+export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
+
+export interface PriceListItem {
+  id: string;
+  company_id: string;
+  description: string;
+  unit_price: number;
+  vat_rate: number;
+  created_at: string;
+}
+
+export interface Quote {
+  id: string;
+  company_id: string;
+  site_id: string;
+  remedial_id: string | null;
+  reference: string;
+  status: QuoteStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuoteLine {
+  id: string;
+  quote_id: string;
+  company_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  vat_rate: number;
+  sort_order: number;
+  created_at: string;
+}
