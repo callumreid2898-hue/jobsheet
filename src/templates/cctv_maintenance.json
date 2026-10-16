@@ -12,8 +12,8 @@
       "repeat_label": "Camera",
       "fields": [
         {"id": "camera_id", "type": "text", "label": "Camera ID / location", "required": true},
-        {"id": "camera_view_clear", "type": "pass_fail_note", "label": "View clear and unobstructed", "triggers_remedial": true, "remedial_priority": "recommended"},
-        {"id": "camera_focus", "type": "pass_fail_note", "label": "Focus correct", "triggers_remedial": true, "remedial_priority": "recommended"},
+        {"id": "camera_view_clear", "type": "pass_fail_note", "label": "View clear and unobstructed", "triggers_remedial": true, "remedialOn": "fail", "remedial_priority": "recommended"},
+        {"id": "camera_focus", "type": "pass_fail_note", "label": "Focus correct", "triggers_remedial": true, "remedialOn": "fail", "remedial_priority": "recommended"},
         {"id": "camera_ir_working", "type": "yes_no_na", "label": "IR / night vision working"},
         {"id": "camera_housing_clean", "type": "yes_no_na", "label": "Housing / lens clean"}
       ]
@@ -23,10 +23,10 @@
       "title": "Recorder Health",
       "fields": [
         {"id": "recorder_make_model", "type": "text", "label": "Recorder make / model"},
-        {"id": "recorder_hdd_status", "type": "pass_fail_note", "label": "HDD health", "triggers_remedial": true, "remedial_priority": "urgent", "hint": "Check HDD health status in recorder settings"},
+        {"id": "recorder_hdd_status", "type": "pass_fail_note", "label": "HDD health", "triggers_remedial": true, "remedialOn": "fail", "remedial_priority": "urgent", "hint": "Check HDD health status in recorder settings"},
         {"id": "hdd_retention_days", "type": "number", "label": "Recording retention (days)", "hint": "Minimum requirement is usually 28–31 days"},
-        {"id": "recorder_time_date_correct", "type": "yes_no_na", "label": "Time and date correct", "triggers_remedial": true, "remedial_priority": "advisory"},
-        {"id": "remote_access_working", "type": "yes_no_na", "label": "Remote access / mobile app working", "triggers_remedial": true, "remedial_priority": "recommended"}
+        {"id": "recorder_time_date_correct", "type": "yes_no_na", "label": "Time and date correct", "triggers_remedial": true, "remedialOn": "no", "remedial_priority": "advisory"},
+        {"id": "remote_access_working", "type": "yes_no_na", "label": "Remote access / mobile app working", "triggers_remedial": true, "remedialOn": "no", "remedial_priority": "recommended"}
       ]
     },
     {

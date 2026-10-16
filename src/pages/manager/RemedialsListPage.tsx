@@ -22,15 +22,44 @@ export function RemedialsListPage() {
 
   const urgentCount = remedials.filter(r => r.priority === 'urgent' && r.status === 'open').length;
 
+  function downloadCsv() {
+    const rows = [
+      ['Priority', 'Description', 'Site', 'Status', 'Created'],
+      ...remedials.map(r => [
+        r.priority,
+        r.description,
+        siteMap.get(r.site_id)?.address ?? r.site_id,
+        r.status,
+        r.created_at ?? '',
+      ]),
+    ];
+    const csv = rows.map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'remedials.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="px-4 pt-6 pb-4">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-900">Remedials</h1>
-        {urgentCount > 0 && (
-          <span className="bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
-            {urgentCount} urgent
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {urgentCount > 0 && (
+            <span className="bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+              {urgentCount} urgent
+            </span>
+          )}
+          <button
+            onClick={downloadCsv}
+            className="text-xs text-blue-600 border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50"
+          >
+            Export CSV
+          </button>
+        </div>
       </div>
 
       <select

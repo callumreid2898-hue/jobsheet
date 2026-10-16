@@ -40,23 +40,24 @@ export function detectRemedials(
 
       if (field.type === 'pass_fail_note') {
         const pfn = value as PassFailNote;
-        if (pfn?.result === 'fail') {
+        const triggerOn = field.remedialOn ?? 'fail';
+        if (pfn?.result === triggerOn) {
           remedials.push({
             jobsheet_id: jobsheetId,
             site_id: siteId,
             company_id: companyId,
-            description: `${field.label}${pfn.note ? ': ' + pfn.note : ' — failed'}`,
+            description: `${field.label}${pfn.note ? ': ' + pfn.note : ` — ${triggerOn}`}`,
             priority,
           });
         }
       } else if (field.type === 'yes_no_na') {
         const yna = value as YesNoNa;
-        if (yna === 'no') {
+        if (yna === (field.remedialOn ?? 'no')) {
           remedials.push({
             jobsheet_id: jobsheetId,
             site_id: siteId,
             company_id: companyId,
-            description: `${field.label} — not confirmed`,
+            description: `${field.label} — ${field.remedialOn === 'yes' ? 'yes (action required)' : 'not confirmed'}`,
             priority,
           });
         }

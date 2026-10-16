@@ -21,6 +21,7 @@ export interface FieldDef {
   hint?: string;
   triggers_remedial?: boolean;
   remedial_priority?: RemedialPriority;
+  remedialOn?: 'yes' | 'no' | 'fail' | null;  // which answer fires the remedial (default: 'no' for yes_no_na, 'fail' for pass_fail_note)
 }
 
 export interface SectionDef {

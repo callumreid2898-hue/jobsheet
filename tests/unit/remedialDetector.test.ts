@@ -191,6 +191,50 @@ describe('detectRemedials', () => {
     expect(result).toHaveLength(2);
   });
 
+  it('creates remedial when yes_no_na has remedialOn:yes and answer is yes', () => {
+    const template: TemplateDef = {
+      ...minimalTemplate,
+      sections: [{
+        id: 's1',
+        title: 'S1',
+        fields: [{
+          id: 'failures_found',
+          label: 'Any failures found?',
+          type: 'yes_no_na',
+          triggers_remedial: true,
+          remedialOn: 'yes',
+          remedial_priority: 'urgent',
+        }],
+      }],
+    };
+
+    const result = detectRemedials(template, { failures_found: 'yes' }, JS_ID, SITE_ID, CO_ID);
+    expect(result).toHaveLength(1);
+    expect(result[0].description).toBe('Any failures found? — yes (action required)');
+    expect(result[0].priority).toBe('urgent');
+  });
+
+  it('does NOT create remedial when yes_no_na has remedialOn:yes and answer is no', () => {
+    const template: TemplateDef = {
+      ...minimalTemplate,
+      sections: [{
+        id: 's1',
+        title: 'S1',
+        fields: [{
+          id: 'failures_found',
+          label: 'Any failures found?',
+          type: 'yes_no_na',
+          triggers_remedial: true,
+          remedialOn: 'yes',
+          remedial_priority: 'urgent',
+        }],
+      }],
+    };
+
+    const result = detectRemedials(template, { failures_found: 'no' }, JS_ID, SITE_ID, CO_ID);
+    expect(result).toHaveLength(0);
+  });
+
   it('skips fields with null or undefined answers', () => {
     const template: TemplateDef = {
       ...minimalTemplate,
