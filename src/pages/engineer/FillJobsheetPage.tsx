@@ -9,7 +9,8 @@ import { useAuth } from '../../auth/AuthProvider';
 import { Spinner } from '../../components/ui/Spinner';
 import { FormEngine } from '../../form-engine/FormEngine';
 import { detectRemedials } from '../../form-engine/remedialDetector';
-import type { Job, Jobsheet, AnswersMap, TemplateId } from '../../types';
+import { collectMedia, MEDIA_BUCKET } from '../../lib/media';
+import type { Job, Jobsheet, AnswersMap, Photo, TemplateId } from '../../types';
 import type { TemplateDef } from '../../templates/types';
 
 export function FillJobsheetPage() {
@@ -52,12 +53,12 @@ export function FillJobsheetPage() {
             company_id: j.company_id,
             template_id: j.template_id as TemplateId,
             answers: {},
-            time_on_site: new Date().toISOString(),
+            time_on_site: j.on_site_at ?? new Date().toISOString(),
             time_off_site: null,
             engineer_signature_url: null,
             customer_signature_url: null,
             submitted_at: null,
-            pdf_url: null,
+            pdf_path: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
@@ -92,10 +93,24 @@ export function FillJobsheetPage() {
     const remedialCreates = detectRemedials(template!, answers, jobsheet.id, job.site_id, profile.company_id);
     const jobsheetKey = syncKey('jobsheets', jobsheet.id);
 
+    // Photos and signatures still on this device get uploaded. Anything taken then
+    // removed is dropped. (A referenced file missing here can't be sent from this device.)
+    const media = collectMedia(template!, answers);
+    const referenced = new Set([...media.photos, ...media.signatures].map(m => m.ref.storage_path));
+    const localPaths = new Set(
+      (await db.blobs.where('jobsheet_id').equals(jobsheet.id).primaryKeys()) as string[],
+    );
+    const signatureFor = (role: 'engineer' | 'customer') => {
+      const path = media.signatures.find(s => s.role === role)?.ref.storage_path;
+      return path && localPaths.has(path) ? path : null;
+    };
+
     const updatedJs: Jobsheet = {
       ...jobsheet,
       answers,
       time_off_site: timeOffSite,
+      engineer_signature_url: signatureFor('engineer') ?? jobsheet.engineer_signature_url,
+      customer_signature_url: signatureFor('customer') ?? jobsheet.customer_signature_url,
       submitted_at: submittedAt,
       updated_at: new Date().toISOString(),
     };
@@ -103,9 +118,42 @@ export function FillJobsheetPage() {
 
     // One transaction, so a crash can't leave half a submission queued.
     // The server logs the submission to audit_log itself (trigger on jobsheets).
-    await db.transaction('rw', [db.remedials, db.jobsheets, db.jobs, db.sync_queue], async () => {
+    await db.transaction('rw', [db.remedials, db.jobsheets, db.jobs, db.photos, db.blobs, db.sync_queue], async () => {
       await db.jobsheets.put(updatedJs);
       await enqueueSync({ table: 'jobsheets', operation: 'upsert', payload: updatedJs as unknown as Record<string, unknown> });
+      const pdfDependsOn = [jobsheetKey];
+
+      // Uploads need the jobsheet on the server (storage RLS checks it); photo rows need their file
+      await db.blobs.bulkDelete([...localPaths].filter(p => !referenced.has(p)));
+      const uploadKey = (path: string) => syncKey('storage', path);
+      for (const path of localPaths) {
+        if (!referenced.has(path)) continue;
+        await enqueueSync({
+          table: 'storage', operation: 'storage_upload',
+          payload: { bucket: MEDIA_BUCKET, storage_path: path, blob_key: path },
+          entity_id: path,
+          depends_on: [jobsheetKey],
+        });
+        pdfDependsOn.push(uploadKey(path));
+      }
+      for (const { ref, label } of media.photos) {
+        if (!localPaths.has(ref.storage_path)) continue;
+        const photo: Photo = {
+          id: ref.id,
+          jobsheet_id: jobsheet.id,
+          company_id: jobsheet.company_id,
+          storage_path: ref.storage_path,
+          caption: ref.caption ?? label,
+          created_at: new Date().toISOString(),
+        };
+        await db.photos.put(photo);
+        await enqueueSync({
+          table: 'photos', operation: 'insert',
+          payload: photo as unknown as Record<string, unknown>,
+          depends_on: [uploadKey(ref.storage_path)],
+        });
+        pdfDependsOn.push(syncKey('photos', photo.id));
+      }
 
       // Remedials and the status change wait for the jobsheet to reach the server
       for (const rc of remedialCreates) {
@@ -121,10 +169,20 @@ export function FillJobsheetPage() {
           payload: remedial as unknown as Record<string, unknown>,
           depends_on: [jobsheetKey],
         });
+        pdfDependsOn.push(syncKey('remedials', remedial.id));
       }
 
       await db.jobs.put(updatedJob);
       await enqueueJobStatus(job.id, 'awaiting_review', [jobsheetKey]);
+      pdfDependsOn.push(syncKey('jobs', job.id));
+
+      // The report is rendered once everything it shows is on the server
+      await enqueueSync({
+        table: 'pdf', operation: 'generate_pdf',
+        payload: { jobsheet_id: jobsheet.id },
+        entity_id: jobsheet.id,
+        depends_on: pdfDependsOn,
+      });
     });
 
     navigate(`/jobs/${job.id}/submitted`, { replace: true });

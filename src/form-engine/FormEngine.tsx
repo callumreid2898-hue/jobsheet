@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { TemplateDef, SectionDef } from '../templates/types';
 import type { AnswersMap, FieldAnswer } from '../types';
 import { validateAnswers, instanceErrorKey } from './validation';
 import { FormSection } from './FormSection';
 import { useFormState } from './useFormState';
+import { FormMediaContext } from './FormContext';
 
 interface FormEngineProps {
   template: TemplateDef;
@@ -30,9 +31,8 @@ export function FormEngine({ template, jobsheetId, companyId, readOnly = false, 
     return initial;
   });
 
-  // Suppress unused variable warning — companyId is available for future use
-  void companyId;
   void repeatCounts;
+  const media = useMemo(() => ({ jobsheetId, companyId }), [jobsheetId, companyId]);
 
   function validate(): boolean {
     const newErrors = validateAnswers(template, answers);
@@ -104,6 +104,7 @@ export function FormEngine({ template, jobsheetId, companyId, readOnly = false, 
   }
 
   return (
+    <FormMediaContext.Provider value={media}>
     <div className="pb-24">
       {template.sections.map((section) => {
         if (section.repeatable) {
@@ -188,5 +189,6 @@ export function FormEngine({ template, jobsheetId, companyId, readOnly = false, 
         </div>
       )}
     </div>
+    </FormMediaContext.Provider>
   );
 }

@@ -1,6 +1,7 @@
 import { View, Text, Image, StyleSheet } from '@react-pdf/renderer';
-import type { Company, Job, Site, Customer, Profile, Remedial, Photo } from '../types';
-import type { SectionDef } from '../templates/types';
+import type { Company, Job, Site, Customer, Profile, Remedial, Photo, PassFailNote, YesNoNa } from '../types';
+import type { SectionDef, FieldDef } from '../templates/types';
+import { formatUKDateTime } from '../lib/dates';
 
 const colors = {
   primary: '#1e40af',
@@ -89,7 +90,7 @@ export function PDFHeader({ company, templateTitle }: HeaderProps) {
 
 // ─── Info bar ──────────────────────────────────────────────────────────────────
 
-interface InfoBarProps { job: Job; site: Site; customer: Customer; engineer: Profile; }
+interface InfoBarProps { job: Job; site: Site; customer: Customer; engineer: Profile | null; }
 export function PDFJobInfoBar({ job, site, customer, engineer }: InfoBarProps) {
   return (
     <View style={pdfStyles.infoBar}>
@@ -104,12 +105,12 @@ export function PDFJobInfoBar({ job, site, customer, engineer }: InfoBarProps) {
         </View>
         <View style={pdfStyles.infoBarItem}>
           <Text style={pdfStyles.infoBarLabel}>Engineer</Text>
-          <Text style={pdfStyles.infoBarValue}>{engineer.full_name}</Text>
+          <Text style={pdfStyles.infoBarValue}>{engineer?.full_name ?? '—'}</Text>
         </View>
         <View style={pdfStyles.infoBarItem}>
           <Text style={pdfStyles.infoBarLabel}>Date</Text>
           <Text style={pdfStyles.infoBarValue}>
-            {new Date(job.scheduled_date + 'T00:00:00').toLocaleDateString('en-GB')}
+            {job.scheduled_date.split('-').reverse().join('/')}
             {job.scheduled_time ? `  ${job.scheduled_time}` : ''}
           </Text>
         </View>
@@ -128,8 +129,76 @@ export function PDFJobInfoBar({ job, site, customer, engineer }: InfoBarProps) {
 
 // ─── Template section ──────────────────────────────────────────────────────────
 
+/** How one answer is printed. Shared by normal and repeatable sections. */
+export type AnswerDisplay =
+  | { kind: 'empty' }
+  | { kind: 'text'; text: string }
+  | { kind: 'pass_fail'; result: 'pass' | 'fail' | null; note: string }
+  | { kind: 'checklist'; items: [string, boolean][] };
+
+const YES_NO_NA: Record<YesNoNa, string> = { yes: 'Yes', no: 'No', 'n/a': 'N/A' };
+
+export function answerDisplay(field: FieldDef, value: unknown): AnswerDisplay {
+  if (value === null || value === undefined || value === '') return { kind: 'empty' };
+  switch (field.type) {
+    case 'pass_fail_note': {
+      const pfn = value as Partial<PassFailNote>;
+      if (!pfn.result && !pfn.note) return { kind: 'empty' };
+      return { kind: 'pass_fail', result: pfn.result ?? null, note: pfn.note ?? '' };
+    }
+    case 'checklist': {
+      const checks = value as Record<string, boolean>;
+      // Template order first, then anything else that was ticked
+      const keys = [...(field.items ?? []), ...Object.keys(checks).filter(k => !field.items?.includes(k))];
+      return { kind: 'checklist', items: keys.map(k => [k, !!checks[k]]) };
+    }
+    case 'yes_no_na':
+      return { kind: 'text', text: YES_NO_NA[value as YesNoNa] ?? String(value) };
+    default:
+      if (typeof value === 'boolean') return { kind: 'text', text: value ? 'Yes' : 'No' };
+      if (typeof value === 'object') return { kind: 'text', text: JSON.stringify(value) };
+      return { kind: 'text', text: String(value) };
+  }
+}
+
+function PDFFieldRow({ field, value }: { field: FieldDef; value: unknown }) {
+  const d = answerDisplay(field, value);
+  return (
+    <View style={pdfStyles.fieldRow} wrap={false}>
+      <Text style={pdfStyles.fieldLabel}>{field.label}</Text>
+      {d.kind === 'empty' && (
+        <Text style={[pdfStyles.fieldValue, { color: colors.textGray, fontStyle: 'italic' }]}>—</Text>
+      )}
+      {d.kind === 'text' && <Text style={pdfStyles.fieldValue}>{d.text}</Text>}
+      {d.kind === 'pass_fail' && (
+        <View style={[pdfStyles.fieldValue, { flexDirection: 'row', flexWrap: 'wrap', gap: 4 }]}>
+          {d.result && (
+            <Text style={d.result === 'pass' ? pdfStyles.passText : pdfStyles.failText}>
+              {d.result.toUpperCase()}
+            </Text>
+          )}
+          {d.note && <Text style={{ color: colors.textDark }}>{d.result ? ' — ' : ''}{d.note}</Text>}
+        </View>
+      )}
+      {d.kind === 'checklist' && (
+        <View style={pdfStyles.fieldValue}>
+          {/* Helvetica has no ballot-box glyphs */}
+          {d.items.map(([item, checked]) => (
+            <Text key={item}>[{checked ? 'x' : ' '}] {item}</Text>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const printable = (section: SectionDef) => section.fields.filter(f => f.type !== 'photo' && f.type !== 'signature');
+
 interface SectionProps { section: SectionDef; answers: Record<string, unknown>; }
 export function PDFSection({ section, answers }: SectionProps) {
+  const fields = printable(section);
+  if (fields.length === 0) return null;
+
   // Repeatable section: render each instance as a sub-table
   if (section.repeatable) {
     const instances = (answers[section.id + '_instances'] ?? []) as Record<string, unknown>[];
@@ -148,18 +217,7 @@ export function PDFSection({ section, answers }: SectionProps) {
                   {section.repeat_label ?? 'Item'} {idx + 1}
                 </Text>
               </View>
-              {section.fields.map(field => {
-                if (field.type === 'photo' || field.type === 'signature') return null;
-                const value = instance[field.id];
-                return (
-                  <View key={field.id} style={pdfStyles.fieldRow}>
-                    <Text style={pdfStyles.fieldLabel}>{field.label}</Text>
-                    <Text style={pdfStyles.fieldValue}>
-                      {value === null || value === undefined ? '—' : String(value)}
-                    </Text>
-                  </View>
-                );
-              })}
+              {fields.map(field => <PDFFieldRow key={field.id} field={field} value={instance?.[field.id]} />)}
             </View>
           ))}
         </View>
@@ -173,53 +231,7 @@ export function PDFSection({ section, answers }: SectionProps) {
         <Text style={pdfStyles.sectionTitle}>{section.title}</Text>
       </View>
       <View style={pdfStyles.sectionBody}>
-        {section.fields.map(field => {
-          if (field.type === 'photo' || field.type === 'signature') return null;
-          const value = answers[field.id];
-          if (value === null || value === undefined) {
-            return (
-              <View key={field.id} style={pdfStyles.fieldRow}>
-                <Text style={pdfStyles.fieldLabel}>{field.label}</Text>
-                <Text style={[pdfStyles.fieldValue, { color: colors.textGray, fontStyle: 'italic' }]}>—</Text>
-              </View>
-            );
-          }
-          if (field.type === 'pass_fail_note') {
-            const pfn = value as { result: string | null; note: string };
-            return (
-              <View key={field.id} style={pdfStyles.fieldRow}>
-                <Text style={pdfStyles.fieldLabel}>{field.label}</Text>
-                <View style={[pdfStyles.fieldValue, { flexDirection: 'row', flexWrap: 'wrap', gap: 4 }]}>
-                  {pfn.result && (
-                    <Text style={pfn.result === 'pass' ? pdfStyles.passText : pdfStyles.failText}>
-                      {pfn.result.toUpperCase()}
-                    </Text>
-                  )}
-                  {pfn.note && <Text style={{ color: colors.textDark }}> — {pfn.note}</Text>}
-                </View>
-              </View>
-            );
-          }
-          if (field.type === 'checklist') {
-            const checks = value as Record<string, boolean>;
-            return (
-              <View key={field.id} style={pdfStyles.fieldRow}>
-                <Text style={pdfStyles.fieldLabel}>{field.label}</Text>
-                <View style={pdfStyles.fieldValue}>
-                  {Object.entries(checks).map(([item, checked]) => (
-                    <Text key={item}>{checked ? '☑' : '☐'} {item}</Text>
-                  ))}
-                </View>
-              </View>
-            );
-          }
-          return (
-            <View key={field.id} style={pdfStyles.fieldRow}>
-              <Text style={pdfStyles.fieldLabel}>{field.label}</Text>
-              <Text style={pdfStyles.fieldValue}>{String(value)}</Text>
-            </View>
-          );
-        })}
+        {fields.map(field => <PDFFieldRow key={field.id} field={field} value={answers[field.id]} />)}
       </View>
     </View>
   );
@@ -257,10 +269,10 @@ export function PDFRemedialTable({ remedials }: RemedialsProps) {
 
 // ─── Photos ────────────────────────────────────────────────────────────────────
 
-interface PhotosProps { photos: Photo[]; }
-export function PDFPhotosSection({ photos }: PhotosProps) {
-  const withPaths = photos.filter(p => p.storage_path);
-  if (withPaths.length === 0) return null;
+/** `images` maps storage paths to data URIs (see loadReportData). */
+interface PhotosProps { photos: Photo[]; images: Record<string, string>; }
+export function PDFPhotosSection({ photos, images }: PhotosProps) {
+  if (photos.length === 0) return null;
   return (
     <View>
       <View style={pdfStyles.sectionHeader}>
@@ -268,9 +280,15 @@ export function PDFPhotosSection({ photos }: PhotosProps) {
       </View>
       <View style={[pdfStyles.sectionBody, { padding: 8 }]}>
         <View style={pdfStyles.photoGrid}>
-          {withPaths.map(photo => (
-            <View key={photo.id} style={pdfStyles.photoItem}>
-              <Image style={pdfStyles.photoImage} src={photo.storage_path} />
+          {photos.map(photo => (
+            <View key={photo.id} style={pdfStyles.photoItem} wrap={false}>
+              {images[photo.storage_path] ? (
+                <Image style={pdfStyles.photoImage} src={images[photo.storage_path]} />
+              ) : (
+                <View style={[pdfStyles.photoImage, pdfStyles.signaturePlaceholder]}>
+                  <Text style={{ fontSize: 7, color: colors.textGray }}>Photo unavailable</Text>
+                </View>
+              )}
               {photo.caption && <Text style={pdfStyles.photoCaption}>{photo.caption}</Text>}
             </View>
           ))}
@@ -282,46 +300,58 @@ export function PDFPhotosSection({ photos }: PhotosProps) {
 
 // ─── Sign-off boxes ────────────────────────────────────────────────────────────
 
+export type SignatureState = 'signed' | 'unavailable' | 'unsigned';
+
+export function signatureState(path: string | null, images: Record<string, string>): SignatureState {
+  if (!path) return 'unsigned';
+  return images[path] ? 'signed' : 'unavailable';
+}
+
+function SignatureImage({ path, images }: { path: string | null; images: Record<string, string> }) {
+  const state = signatureState(path, images);
+  if (state === 'signed') return <Image style={pdfStyles.signatureImage} src={images[path!]} />;
+  return (
+    <View style={pdfStyles.signaturePlaceholder}>
+      <Text style={{ fontSize: 7, color: colors.textGray }}>
+        {state === 'unsigned' ? 'Not signed' : 'Signature on file (image unavailable)'}
+      </Text>
+    </View>
+  );
+}
+
 interface SignaturesProps {
-  engineerSignatureUrl: string | null;
-  customerSignatureUrl: string | null;
+  engineerSignaturePath: string | null;
+  customerSignaturePath: string | null;
+  images: Record<string, string>;
   engineerName: string;
+  customerName: string | null;
   companyName: string;
   submittedAt: string | null;
 }
 export function PDFSignatureBoxes({
-  engineerSignatureUrl,
-  customerSignatureUrl,
+  engineerSignaturePath,
+  customerSignaturePath,
+  images,
   engineerName,
+  customerName,
   companyName,
   submittedAt,
 }: SignaturesProps) {
   return (
-    <View style={pdfStyles.signatureSection}>
+    <View style={pdfStyles.signatureSection} wrap={false}>
       <View style={pdfStyles.signatureBox}>
         <Text style={pdfStyles.signatureLabel}>Engineer ({companyName})</Text>
-        {engineerSignatureUrl ? (
-          <Image style={pdfStyles.signatureImage} src={engineerSignatureUrl} />
-        ) : (
-          <View style={pdfStyles.signaturePlaceholder}>
-            <Text style={{ fontSize: 7, color: colors.textGray }}>Not signed</Text>
-          </View>
-        )}
+        <SignatureImage path={engineerSignaturePath} images={images} />
         <Text style={{ fontSize: 7, color: colors.textGray, marginTop: 4 }}>{engineerName}</Text>
         {submittedAt && (
-          <Text style={{ fontSize: 7, color: colors.textGray }}>
-            {new Date(submittedAt).toLocaleString('en-GB')}
-          </Text>
+          <Text style={{ fontSize: 7, color: colors.textGray }}>{formatUKDateTime(submittedAt)}</Text>
         )}
       </View>
       <View style={pdfStyles.signatureBox}>
         <Text style={pdfStyles.signatureLabel}>Responsible Person (Premises Management)</Text>
-        {customerSignatureUrl ? (
-          <Image style={pdfStyles.signatureImage} src={customerSignatureUrl} />
-        ) : (
-          <View style={pdfStyles.signaturePlaceholder}>
-            <Text style={{ fontSize: 7, color: colors.textGray }}>Not signed</Text>
-          </View>
+        <SignatureImage path={customerSignaturePath} images={images} />
+        {customerName && (
+          <Text style={{ fontSize: 7, color: colors.textGray, marginTop: 4 }}>{customerName}</Text>
         )}
       </View>
     </View>

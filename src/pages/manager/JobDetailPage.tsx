@@ -11,6 +11,8 @@ import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { FormEngine } from '../../form-engine/FormEngine';
 import { enqueueSync } from '../../offline/SyncQueue';
+import { openStorageFile } from '../../lib/media';
+import { useOnline } from '../../lib/useOnline';
 import type { Job, Jobsheet, Site, Customer, JobLine, Remedial } from '../../types';
 import type { TemplateDef } from '../../templates/types';
 
@@ -53,6 +55,9 @@ export function JobDetailPage() {
   const [jobsheet, setJobsheet]   = useState<Jobsheet | null>(null);
   const [template, setTemplate]   = useState<TemplateDef | null>(null);
   const [jsLoading, setJsLoading] = useState(false);
+  const [pdfBusy, setPdfBusy]     = useState<'open' | 'regenerate' | null>(null);
+  const [pdfError, setPdfError]   = useState<string | null>(null);
+  const isOnline = useOnline();
 
   // Remedials tab
   const [remedials, setRemedials]   = useState<Remedial[]>([]);
@@ -122,13 +127,14 @@ export function JobDetailPage() {
 
     async function loadJobsheet() {
       try {
+        // Server first: the PDF path is set after submission, by the engineer's device
         let js: Jobsheet | undefined;
-        const dexieJs = await db.jobsheets.where('job_id').equals(jobId!).first().catch(() => undefined);
-        if (dexieJs) {
-          js = dexieJs;
+        const { data, error } = await supabase.from('jobsheets').select('*').eq('job_id', jobId!).maybeSingle();
+        if (!error && data) {
+          js = data as Jobsheet;
+          await db.jobsheets.put(js).catch(() => {});
         } else {
-          const { data } = await supabase.from('jobsheets').select('*').eq('job_id', jobId!).maybeSingle();
-          if (data) { js = data as Jobsheet; await db.jobsheets.put(js).catch(() => {}); }
+          js = await db.jobsheets.where('job_id').equals(jobId!).first().catch(() => undefined);
         }
         if (!js) { setJsLoading(false); return; }
         setJobsheet(js);
@@ -215,6 +221,35 @@ export function JobDetailPage() {
       // already enqueued
     }
     setReassigning(false);
+  }
+
+  // ── PDF ───────────────────────────────────────────────────────────────────
+  async function openPdf() {
+    if (!jobsheet?.pdf_path) return;
+    setPdfBusy('open');
+    setPdfError(null);
+    try {
+      await openStorageFile('pdfs', jobsheet.pdf_path);
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPdfBusy(null);
+    }
+  }
+
+  async function regeneratePdf() {
+    if (!jobsheet) return;
+    setPdfBusy('regenerate');
+    setPdfError(null);
+    try {
+      const { generateAndUploadPDF } = await import('../../pdf/generatePDF');
+      const path = await generateAndUploadPDF(jobsheet.id);
+      setJobsheet({ ...jobsheet, pdf_path: path });
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPdfBusy(null);
+    }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -313,12 +348,38 @@ export function JobDetailPage() {
           ) : !template ? (
             <EmptyState heading="Template unavailable" description="Could not load the form template." />
           ) : (
-            <FormEngine
-              template={template}
-              jobsheetId={jobsheet.id}
-              companyId={company?.id ?? jobsheet.company_id}
-              readOnly={true}
-            />
+            <div>
+              <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200">
+                {jobsheet.pdf_path ? (
+                  <button
+                    type="button"
+                    onClick={openPdf}
+                    disabled={pdfBusy !== null || !isOnline}
+                    className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-60"
+                  >
+                    {pdfBusy === 'open' ? 'Opening…' : 'View PDF'}
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-500 italic">No PDF yet. It's made once the engineer's device has synced.</span>
+                )}
+                <button
+                  type="button"
+                  onClick={regeneratePdf}
+                  disabled={pdfBusy !== null || !isOnline}
+                  className="ml-auto border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-60"
+                >
+                  {pdfBusy === 'regenerate' ? 'Generating…' : jobsheet.pdf_path ? 'Regenerate PDF' : 'Generate PDF'}
+                </button>
+                {!isOnline && <p className="w-full text-xs text-gray-500">PDFs need a connection.</p>}
+                {pdfError && <p className="w-full text-xs text-red-600" role="alert">{pdfError}</p>}
+              </div>
+              <FormEngine
+                template={template}
+                jobsheetId={jobsheet.id}
+                companyId={company?.id ?? jobsheet.company_id}
+                readOnly={true}
+              />
+            </div>
           )
         )}
 

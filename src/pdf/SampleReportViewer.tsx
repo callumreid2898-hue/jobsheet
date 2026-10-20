@@ -108,7 +108,7 @@ function makeJobsheet(templateId: TemplateId, answers: Record<string, unknown>):
     engineer_signature_url:  null,
     customer_signature_url:  null,
     submitted_at:            '2026-10-17T10:30:00Z',
-    pdf_url:                 null,
+    pdf_path:                null,
     created_at:              '2026-10-17T09:00:00Z',
     updated_at:              '2026-10-17T10:30:00Z',
   };
@@ -285,6 +285,7 @@ export function SampleReportViewer({ templateId }: Props) {
       photos={[]}
       remedials={remedials}
       template={template}
+      images={{}}
     />
   );
 

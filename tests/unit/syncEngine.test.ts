@@ -21,16 +21,30 @@ vi.mock('../../src/lib/supabaseClient', () => {
         delete: () => ({ eq: (_col: string, id: unknown) => result({ table, op: 'delete', id }) }),
       }),
       rpc: (fn: string, args: unknown) => result({ table: 'rpc', op: fn, row: args }),
-      storage: { from: () => ({ upload: vi.fn().mockResolvedValue({ error: null }) }) },
+      storage: {
+        from: (bucket: string) => ({
+          upload: async (path: string, blob: unknown, opts?: unknown) => {
+            const res = await result({ table: `storage:${bucket}`, op: 'upload', row: path, opts, id: blob });
+            return { data: res.error ? null : { path }, error: res.error ? { ...res.error, status: res.status } : null };
+          },
+        }),
+      },
     },
   };
 });
+
+// The PDF step is tested on its own (pdf.test.ts); here only its queue behaviour matters.
+const pdfGen = vi.hoisted(() => ({ fn: (_id: string): Promise<string> => Promise.resolve('report.pdf') }));
+vi.mock('../../src/pdf/generatePDF', () => ({
+  generateAndUploadPDF: (id: string) => pdfGen.fn(id),
+}));
 
 import { db } from '../../src/lib/db';
 import {
   flushQueue, setSyncIdentity, subscribeToSync, isTransient, backoffDelay, type SyncState,
 } from '../../src/lib/syncEngine';
 import { enqueueSync, enqueueJobStatus, syncKey } from '../../src/offline/SyncQueue';
+import { saveLocalBlob } from '../../src/lib/media';
 import type { SyncQueueItem } from '../../src/types';
 
 const USER_A = 'user-a';
@@ -45,6 +59,8 @@ beforeEach(async () => {
   setOnline(true);
   setSyncIdentity(null, null);
   await db.sync_queue.clear();
+  await db.blobs.clear();
+  pdfGen.fn = () => Promise.resolve('report.pdf');
   sb.calls = [];
   sb.respond = () => ({ error: null, status: 200 });
   setSyncIdentity(USER_A, 'co-a');
@@ -277,5 +293,80 @@ describe('flushQueue users', () => {
     await db.sync_queue.toCollection().modify({ user_id: null });
     expect(await flushQueue()).toEqual({ synced: 0, failed: 0 });
     expect(sb.calls).toHaveLength(0);
+  });
+});
+
+describe('photos, signatures and the PDF', () => {
+  const PATH = 'co-a/js1/p1.jpg';
+  const jsKey = syncKey('jobsheets', 'js1');
+  const uploadKey = syncKey('storage', PATH);
+
+  // What FillJobsheetPage queues on submit, minus remedials and the status change
+  async function queueSubmission() {
+    await enqueueSync({ table: 'jobsheets', operation: 'upsert', payload: { id: 'js1' } });
+    await enqueueSync({
+      table: 'storage', operation: 'storage_upload',
+      payload: { bucket: 'photos', storage_path: PATH, blob_key: PATH },
+      entity_id: PATH, depends_on: [jsKey],
+    });
+    await enqueueSync({ table: 'photos', operation: 'insert', payload: { id: 'p1', storage_path: PATH }, depends_on: [uploadKey] });
+    await enqueueSync({
+      table: 'pdf', operation: 'generate_pdf', payload: { jobsheet_id: 'js1' },
+      entity_id: 'js1', depends_on: [jsKey, uploadKey, syncKey('photos', 'p1')],
+    });
+  }
+
+  it('uploads the local file to its path, then the photo row, then makes the PDF', async () => {
+    const blob = new Blob(['jpeg'], { type: 'image/jpeg' });
+    await saveLocalBlob(PATH, 'js1', blob);
+    const pdfCalls: string[] = [];
+    pdfGen.fn = async id => { pdfCalls.push(id); return 'report.pdf'; };
+    await queueSubmission();
+
+    expect(await flushQueue()).toEqual({ synced: 4, failed: 0 });
+    expect(sb.calls.map(c => `${c.table}:${c.op}`)).toEqual(['jobsheets:upsert', 'storage:photos:upload', 'photos:upsert']);
+    expect(sb.calls[1]).toMatchObject({ row: PATH, opts: { upsert: true, contentType: 'image/jpeg' } });
+    expect((sb.calls[1].id as Blob).size).toBe(blob.size);
+    expect(pdfCalls).toEqual(['js1']);
+    // Kept for the PDF; generateAndUploadPDF removes it
+    expect(await db.blobs.get(PATH)).toBeDefined();
+  });
+
+  it('a missing local file fails the upload and holds back the photo row and the PDF', async () => {
+    let pdfCalled = false;
+    pdfGen.fn = async () => { pdfCalled = true; return ''; };
+    await queueSubmission();
+
+    expect(await flushQueue()).toEqual({ synced: 1, failed: 1 });
+    expect(pdfCalled).toBe(false);
+    const left = await queue();
+    expect(left.map(i => [i.operation, i.status])).toEqual([
+      ['storage_upload', 'failed'], ['insert', 'pending'], ['generate_pdf', 'pending'],
+    ]);
+    expect(left[0].last_error).toMatch(/no longer on this device/);
+  });
+
+  it('a storage outage keeps the upload pending and the PDF waiting', async () => {
+    await saveLocalBlob(PATH, 'js1', new Blob(['x']));
+    let pdfCalled = false;
+    pdfGen.fn = async () => { pdfCalled = true; return ''; };
+    sb.respond = c => (c.table.startsWith('storage:') ? { error: { message: 'Bad gateway' }, status: 502 } : { error: null, status: 200 });
+    await queueSubmission();
+
+    await flushQueue();
+    expect(pdfCalled).toBe(false);
+    expect((await queue()).map(i => i.status)).toEqual(['pending', 'pending', 'pending']);
+  });
+
+  it('PDF errors: network failures retry, render failures need attention', async () => {
+    await enqueueSync({ table: 'pdf', operation: 'generate_pdf', payload: { jobsheet_id: 'js1' }, entity_id: 'js1' });
+    pdfGen.fn = () => Promise.reject(new TypeError('Failed to fetch'));
+    await flushQueue();
+    expect((await queue())[0]).toMatchObject({ status: 'pending', last_error: 'Failed to fetch' });
+
+    await db.sync_queue.toCollection().modify({ next_attempt_at: null });
+    pdfGen.fn = () => Promise.reject(Object.assign(new Error("Couldn't render the report"), { status: 422 }));
+    await flushQueue();
+    expect((await queue())[0]).toMatchObject({ status: 'failed', attempts: 2 });
   });
 });

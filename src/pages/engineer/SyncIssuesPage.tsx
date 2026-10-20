@@ -23,7 +23,10 @@ function describe(item: SyncQueueItem): string {
   if (item.table === 'jobsheets' && item.payload['submitted_at']) return 'Jobsheet submission';
   if (item.operation === 'insert') return `New ${what.toLowerCase()}`;
   if (item.operation === 'delete') return `Delete ${what.toLowerCase()}`;
-  if (item.operation === 'storage_upload') return 'Photo upload';
+  if (item.operation === 'storage_upload') {
+    return String(item.payload['storage_path']).includes('/signatures/') ? 'Signature upload' : 'Photo upload';
+  }
+  if (item.operation === 'generate_pdf') return 'PDF report';
   return `${what} update`;
 }
 

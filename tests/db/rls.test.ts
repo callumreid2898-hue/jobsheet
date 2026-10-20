@@ -151,13 +151,15 @@ describe('jobsheets', () => {
       .rejects.toThrow(/row-level security/);
   });
 
-  it('the assigned engineer can edit until submitted; afterwards only the PDF link', async () => {
+  it('the assigned engineer can edit until submitted; afterwards only the PDF and signature paths', async () => {
     await as(db, U.engA, () => db.query(
       `update jobsheets set answers = '{"a":1}', submitted_at = now() where id = '${JS1}'`));
     await expect(as(db, U.engA, () => db.query(`update jobsheets set answers = '{"a":2}' where id = '${JS1}'`)))
       .rejects.toThrow(/read-only/);
-    await as(db, U.engA, () => db.query(`update jobsheets set pdf_url = 'p' where id = '${JS1}'`));
-    expect(await rows(`select answers, pdf_url from jobsheets where id = '${JS1}'`)).toEqual([{ answers: { a: 1 }, pdf_url: 'p' }]);
+    await as(db, U.engA, () => db.query(
+      `update jobsheets set pdf_path = 'p', customer_signature_url = 's' where id = '${JS1}'`));
+    expect(await rows(`select answers, pdf_path, customer_signature_url from jobsheets where id = '${JS1}'`))
+      .toEqual([{ answers: { a: 1 }, pdf_path: 'p', customer_signature_url: 's' }]);
   });
 
   it('submission is logged once, attributed to the submitting user', async () => {
@@ -230,6 +232,45 @@ describe('storage: pdfs', () => {
 
   it('another company cannot list the reports', async () => {
     expect(await as(db, U.mgrB, () => count(`select count(*)::int n from storage.objects where bucket_id = 'pdfs'`))).toBe(0);
+  });
+});
+
+describe('photos', () => {
+  const PH1 = '00000000-0000-0000-0007-000000000001';
+  const photoRow = (id: string, js: string) => `insert into photos (id, jobsheet_id, company_id, storage_path)
+    values ('${id}', '${js}', '${CO_A}', '${CO_A}/${js}/${id}.jpg') on conflict (id) do nothing`;
+  const upload = (path: string) => `insert into storage.objects (bucket_id, name) values ('photos', '${path}')`;
+
+  it('the assigned engineer can add photo rows to their jobsheet only', async () => {
+    await as(db, U.engA, () => db.query(photoRow(PH1, JS1)));
+    await as(db, U.engA, () => db.query(photoRow(PH1, JS1))); // a retried insert is fine
+    await expect(as(db, U.engA, () => db.query(photoRow('00000000-0000-0000-0007-000000000002', JS2))))
+      .rejects.toThrow(/row-level security/);
+  });
+
+  it("other engineers can't see the photos; managers can; engineers can't delete", async () => {
+    expect(await as(db, U.engA2, () => count(`select count(*)::int n from photos where id = '${PH1}'`))).toBe(0);
+    expect(await as(db, U.mgrA, () => count(`select count(*)::int n from photos where id = '${PH1}'`))).toBe(1);
+    expect(await as(db, U.mgrB, () => count(`select count(*)::int n from photos`))).toBe(0);
+    expect((await as(db, U.engA, () => db.query(`delete from photos where id = '${PH1}'`))).affectedRows).toBe(0);
+  });
+
+  it('photo and signature files: only under the assigned jobsheet', async () => {
+    await as(db, U.engA, () => db.query(upload(`${CO_A}/${JS1}/${PH1}.jpg`)));
+    await as(db, U.engA, () => db.query(upload(`${CO_A}/${JS1}/signatures/engineer.png`)));
+    await expect(as(db, U.engA, () => db.query(upload(`${CO_A}/${JS2}/x.jpg`)))).rejects.toThrow(/row-level security/);
+    await expect(as(db, U.engA, () => db.query(upload(`${CO_B}/${JS1}/x.jpg`)))).rejects.toThrow(/row-level security/);
+    expect(await as(db, U.engA2, () => count(`select count(*)::int n from storage.objects where bucket_id = 'photos'`))).toBe(0);
+    expect(await as(db, U.mgrA, () => count(`select count(*)::int n from storage.objects where bucket_id = 'photos'`))).toBe(2);
+  });
+
+  it('a retried upload (upsert) can overwrite; only managers delete', async () => {
+    const res = await as(db, U.engA, () => db.query(
+      `update storage.objects set name = name where bucket_id = 'photos' and name = '${CO_A}/${JS1}/${PH1}.jpg'`));
+    expect(res.affectedRows).toBe(1);
+    expect((await as(db, U.engA, () => db.query(`delete from storage.objects where bucket_id = 'photos'`))).affectedRows).toBe(0);
+    expect((await as(db, U.mgrA, () => db.query(
+      `delete from storage.objects where bucket_id = 'photos' and name like '%/signatures/%'`))).affectedRows).toBe(1);
   });
 });
 

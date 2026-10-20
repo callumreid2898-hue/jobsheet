@@ -5,6 +5,7 @@ import { db } from '../../lib/db';
 import { useAuth } from '../../auth/AuthProvider';
 import { Spinner } from '../../components/ui/Spinner';
 import { StatusPill } from '../../components/ui/StatusPill';
+import { openStorageFile } from '../../lib/media';
 import { FormEngine } from '../../form-engine/FormEngine';
 import type { Job, Jobsheet, Site, Customer } from '../../types';
 import type { TemplateDef } from '../../templates/types';
@@ -77,10 +78,10 @@ export function ReviewJobsheetPage() {
       </div>
 
       <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-        {jobsheet.pdf_url ? (
-          <a href={jobsheet.pdf_url} target="_blank" rel="noreferrer" className="text-blue-600 text-sm font-medium flex items-center gap-1">
+        {jobsheet.pdf_path ? (
+          <button type="button" onClick={() => openStorageFile('pdfs', jobsheet.pdf_path!).catch(() => {})} className="text-blue-600 text-sm font-medium flex items-center gap-1">
             📄 Download PDF
-          </a>
+          </button>
         ) : (
           <span className="text-xs text-gray-400 italic">PDF generating…</span>
         )}

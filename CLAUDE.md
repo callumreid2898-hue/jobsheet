@@ -58,10 +58,19 @@ All writes must:
 - Calendar dates (`scheduled_date` etc.) come from `localISODate()` / `addDaysISO()` in `src/lib/dates.ts`. Never use `toISOString()` for a date: it's UTC, an hour behind in BST.
 - When caching fetched rows, use `mergeServerRows()` so rows with unsynced local changes aren't overwritten (only `useJobs` so far).
 
+### Photos and signatures
+
+- Taking a photo or saving a signature writes the file to `db.blobs` straight away (bytes + MIME type, keyed by its storage path; read it back with `getLocalBlob()`). Answers hold only `{ id, storage_path }` / `{ storage_path, captured_at }`.
+- Paths (`src/lib/media.ts`): `photos/{company}/{jobsheet}/{photo}.jpg` and `photos/{company}/{jobsheet}/signatures/{engineer|customer}.png`. `jobsheets.*_signature_url` hold these paths, not URLs.
+- Nothing is uploaded before submit. Submit queues a `storage_upload` per file (after the jobsheet), a `photos` row insert per photo (after its upload), then `generate_pdf` (after everything).
+- Show stored images with `<MediaImage path>` / `useMediaSrc()`: local file if it's on the device, else a signed URL.
+
 ### PDF
 
-- `generateAndUploadPDF(...)` in `src/pdf/generatePDF.ts` renders the PDF client-side, uploads to the `pdfs` bucket, updates Supabase + Dexie, and returns the public URL.
-- PDF generation is **skipped when offline**. The sync engine calls it automatically after flushing the jobsheet.
+- `generateAndUploadPDF(jobsheetId)` in `src/pdf/generatePDF.ts` loads its own data (Supabase first, Dexie fallback), renders client-side, uploads to the private `pdfs` bucket, stores `jobsheets.pdf_path` (Supabase + Dexie) and returns the path. It throws `PDFError` with an HTTP-style `status`.
+- Open a PDF with `openStorageFile('pdfs', path)` (signed URL on demand). Never store public or signed URLs.
+- Engineers' PDFs come from the `generate_pdf` queue item (offline-safe, retried). Managers can regenerate from the job's Jobsheet tab.
+- Timestamps in the PDF use `formatUKDateTime()` etc. (Europe/London).
 - Never import `@react-pdf/renderer` at the top level of a page — it is large. Use dynamic import or keep it in `src/pdf/`.
 
 ### Sync Engine
@@ -124,7 +133,7 @@ supabase stop
 ## Do Not
 
 - Do not add `company_id` filters to Supabase queries — RLS handles it.
-- Do not store blobs as base64 — use `Blob` in Dexie, `storage_path` in DB.
+- Do not store blobs as base64 — use `db.blobs` (binary) in Dexie, `storage_path` in DB.
 - Do not call `startSyncEngine()` more than once — it is guarded by `if (started) return`.
 - Do not import `@react-pdf/renderer` outside `src/pdf/`.
 - Do not add `tailwind.config.ts` — Tailwind v4 uses CSS-based config only.

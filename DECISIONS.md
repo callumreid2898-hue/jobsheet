@@ -14,9 +14,9 @@
 
 **Context:** Photos need to survive offline and be uploaded to Storage when back online.
 
-**Decision:** Photos are stored as raw `Blob` objects in Dexie. After successful Storage upload, the blob is cleared (`blob: undefined`) and `storage_path` is set.
+**Decision:** Photos (re-encoded as JPEG, max 1600px) are stored as binary in `db.blobs`, keyed by the storage path they'll be uploaded to. They're uploaded when the jobsheet is submitted, and removed from the device once the PDF is made.
 
-**Rationale:** Base64 strings are ~33% larger and cannot be efficiently streamed. Dexie supports `Blob` natively via IndexedDB structured clone. This keeps memory pressure low on mobile devices.
+**Rationale:** Base64 strings are ~33% larger and cannot be efficiently streamed. The bytes are stored as an `ArrayBuffer` plus MIME type rather than a `Blob`, because some browsers (older iOS Safari, Chromium private contexts) fail to store Blobs in IndexedDB. *(Updated in audit batch 5.)*
 
 ---
 
@@ -24,9 +24,9 @@
 
 **Context:** Signatures are captured as canvas data URLs (PNG). They need to be persisted and appear in the PDF.
 
-**Decision:** `signature_pad` captures a PNG data URL. At submit time, the data URL is converted to a `Blob`, uploaded to the `photos` bucket under a `/signatures/` prefix, and the resulting public URL is stored on `jobsheets.engineer_signature_url` / `customer_signature_url`.
+**Decision:** `signature_pad` captures a PNG, saved like a photo (`db.blobs`) at `{company}/{jobsheet}/signatures/{engineer|customer}.png` in the `photos` bucket. On submit it's uploaded and the **path** is stored on `jobsheets.engineer_signature_url` / `customer_signature_url` (the bucket is private, so there's no lasting URL).
 
-**Rationale:** Storing raw base64 in Postgres would bloat the `jobsheets` JSONB column. Uploading to Storage keeps the DB lean and allows the PDF renderer to reference the URL directly.
+**Rationale:** Storing raw base64 in Postgres would bloat the `jobsheets` JSONB column. Uploading to Storage keeps the DB lean; the PDF renderer embeds the image from the device or a storage download. *(Updated in audit batch 5.)*
 
 ---
 
@@ -54,9 +54,9 @@
 
 **Context:** PDF generation requires `@react-pdf/renderer` which renders synchronously into a Blob, then uploads to Storage. Storage upload requires network.
 
-**Decision:** On submit, if the device is offline the PDF step is skipped. The sync engine detects a submitted jobsheet after flushing it and calls `triggerPDFGeneration()`. The manager's review page shows "Generating…" (no `pdf_url`) until the PDF is ready.
+**Decision:** Submit queues a `generate_pdf` item that waits for the jobsheet, uploads, photo rows, remedials and status change. The sync queue runs it when online and retries it like any other item. The PDF path is stored on `jobsheets.pdf_path` and opened through a signed URL. Managers can regenerate it. *(Updated in audit batch 5.)*
 
-**Rationale:** Trying to generate offline would succeed but the upload would fail. Deferring is simpler and more reliable than retry logic for the blob upload.
+**Rationale:** Generating offline would succeed but the upload would fail, and generating before the photos are uploaded would leave them out. Putting it in the queue gives ordering and retries for free.
 
 ---
 

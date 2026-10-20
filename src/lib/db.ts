@@ -10,7 +10,8 @@ import type {
   Jobsheet,
   Remedial,
   SyncQueueItem,
-  PhotoLocal,
+  Photo,
+  LocalBlob,
   Contract,
   ContractVisit,
   Device,
@@ -31,7 +32,8 @@ export class AppDB extends Dexie {
   jobs!: Table<Job>;
   job_lines!: Table<JobLine>;
   jobsheets!: Table<Jobsheet>;
-  photos!: Table<PhotoLocal>;
+  photos!: Table<Photo>;
+  blobs!: Table<LocalBlob>;
   remedials!: Table<Remedial>;
   sync_queue!: Table<SyncQueueItem>;
   contracts!: Table<Contract>;
@@ -99,6 +101,11 @@ export class AppDB extends Dexie {
           depends_on: [],
         });
       }
+    });
+
+    // Photo and signature files until they're uploaded (keyed by storage path).
+    this.version(6).stores({
+      blobs: 'id, jobsheet_id',
     });
   }
 }

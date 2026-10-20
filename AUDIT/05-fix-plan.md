@@ -153,6 +153,18 @@ Tests: `tests/unit/jobFlow.test.ts` (transitions vs the RPC, BST/GMT dates, stab
 
 ## Batch 5 — Photos, signatures, PDF (L) · C8 C9 C11 H12 H13
 
+**Batch 5 result (2026-10-20), done locally, not applied to hosted:** everything below except the email Edge Function (it needs your choice of email provider). Differences from the plan:
+- Uploads are queued **at submit**, not when the photo is taken. Photos are saved to the device (`db.blobs`) as soon as they're taken. Waiting means a photo taken and then removed is never uploaded, and storage RLS can check the jobsheet already exists on the server.
+- Local files are stored as `ArrayBuffer` + MIME type, not `Blob`. Chromium private contexts (and some older iOS Safari versions) reject Blobs in IndexedDB. The e2e test found this.
+- `jobsheets.pdf_url` was **renamed** to `pdf_path` (00011), and old public URLs were converted to paths.
+- 00011 also scopes `photos` rows and the `photos` bucket like `pdfs` (manager or assigned engineer; deletes manager-only). 00003 had left them open to the whole company.
+- `generate_pdf` waits on the jobsheet, uploads, photo rows, remedials and the status change. Render failures (422) and missing data (404) mark it failed; network errors retry.
+- Manager "View PDF" (signed URL) and "Regenerate PDF" are on JobDetailPage's Jobsheet tab, which now loads Supabase-first. ReviewJobsheetPage (unrouted) only got the compile fix.
+- PDF: engineer = `job.assigned_engineer_id` (may be none); "On site" uses `job.on_site_at`; times are Europe/London; checklists print `[x]` (Helvetica has no ☑ glyph); a stored signature whose image can't be loaded says so instead of "Not signed".
+- Removed the dead `PhotoGrid.tsx` and `usePhotos.ts`.
+- Not handled: drafts from older builds whose signatures are data URLs still display, but they aren't uploaded on submit. There are no production users, so I didn't add a migration path.
+- Tests: `tests/unit/media.test.ts`, `pdf.test.ts` (real render in Node: repeat pass/fail rows, signature, missing photo), `reportData.test.ts` (assigned engineer, Dexie fallback, image embedding, error statuses), 4 new queue tests in `syncEngine.test.ts`, 4 photo RLS tests in `tests/db/rls.test.ts` (all fail without 00011), and the e2e flow now adds a photo and checks the signature, photo and PDF uploads and the stored paths.
+
 **Files:** `PhotoField.tsx`, `SignatureField.tsx`, `FillJobsheetPage.tsx`, `syncEngine.ts`, `src/pdf/generatePDF.ts`, `PDFSections.tsx`, `JobsheetPDF.tsx`, a new migration (`jobsheets.pdf_path`), `JobDetailPage.tsx`.
 
 - Photos: on pick, compress and save `db.photos.put({blob,…})`; queue a `photos` row insert and `storage_upload` to `{co}/{js}/{id}.jpg`; answers hold `{id}` only.

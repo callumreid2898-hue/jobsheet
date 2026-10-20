@@ -10,6 +10,7 @@ import {
   PDFPhotosSection,
   PDFSignatureBoxes,
 } from './PDFSections';
+import { formatUKDate, formatUKTime } from '../lib/dates';
 
 const footerStyles = StyleSheet.create({
   footer: {
@@ -43,10 +44,11 @@ export interface JobsheetPDFProps {
   site: Site;
   customer: Customer;
   company: Company;
-  engineerProfile: Profile;
+  engineerProfile: Profile | null; // job.assigned_engineer_id
   photos: Photo[];
   remedials: Remedial[];
   template: TemplateDef;
+  images: Record<string, string>;  // storage path -> data URI, for photos and signatures
 }
 
 export function JobsheetPDF({
@@ -59,8 +61,13 @@ export function JobsheetPDF({
   photos,
   remedials,
   template,
+  images,
 }: JobsheetPDFProps) {
   const jobRef = `JS-${job.id.slice(0, 8).toUpperCase()}`;
+  // Arrival is when the engineer tapped "Arrived"; older jobsheets only have the form-open time
+  const onSite = job.on_site_at ?? jobsheet.time_on_site;
+  const offSite = jobsheet.time_off_site;
+  const customerName = typeof jobsheet.answers['customer_name'] === 'string' ? jobsheet.answers['customer_name'] : null;
 
   return (
     <Document
@@ -86,11 +93,11 @@ export function JobsheetPDF({
           <Text style={{ fontSize: 9, color: '#6b7280' }}>
             Ref: {jobRef}
           </Text>
-          {(jobsheet.time_on_site || jobsheet.time_off_site) && (
+          {(onSite || offSite) && (
             <Text style={{ fontSize: 9, color: '#6b7280', marginTop: 2 }}>
-              {jobsheet.time_on_site && `On site: ${jobsheet.time_on_site}`}
-              {jobsheet.time_on_site && jobsheet.time_off_site && '  '}
-              {jobsheet.time_off_site && `Off site: ${jobsheet.time_off_site}`}
+              {onSite && `On site: ${formatUKDate(onSite)} ${formatUKTime(onSite)}`}
+              {onSite && offSite && '   '}
+              {offSite && `Off site: ${formatUKTime(offSite)}`}
             </Text>
           )}
         </View>
@@ -107,14 +114,16 @@ export function JobsheetPDF({
         {/* Remedials table (only if any exist) */}
         <PDFRemedialTable remedials={remedials} />
 
-        {/* Photos grid (only if any have a storage path) */}
-        <PDFPhotosSection photos={photos} />
+        {/* Photos grid (only if any were uploaded) */}
+        <PDFPhotosSection photos={photos} images={images} />
 
         {/* Dual signature boxes with EMTEC-style labels */}
         <PDFSignatureBoxes
-          engineerSignatureUrl={jobsheet.engineer_signature_url}
-          customerSignatureUrl={jobsheet.customer_signature_url}
-          engineerName={engineerProfile.full_name}
+          engineerSignaturePath={jobsheet.engineer_signature_url}
+          customerSignaturePath={jobsheet.customer_signature_url}
+          images={images}
+          engineerName={engineerProfile?.full_name ?? '—'}
+          customerName={customerName}
           companyName={company.name}
           submittedAt={jobsheet.submitted_at}
         />
@@ -132,7 +141,7 @@ export function JobsheetPDF({
           />
           <Text style={footerStyles.footerText}>
             {jobsheet.submitted_at
-              ? `Submitted ${new Date(jobsheet.submitted_at).toLocaleDateString('en-GB')}`
+              ? `Submitted ${formatUKDate(jobsheet.submitted_at)}`
               : 'Draft'}
           </Text>
         </View>

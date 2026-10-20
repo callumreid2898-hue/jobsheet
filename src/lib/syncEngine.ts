@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { db } from './db';
+import { getLocalBlob } from './media';
 import type { SyncQueueItem } from '../types';
 
 type SyncListener = (state: SyncState) => void;
@@ -134,29 +135,36 @@ async function send(item: SyncQueueItem) {
       break;
 
     case 'storage_upload': {
-      const photoId = p['blob_key'] as string;
       const storagePath = p['storage_path'] as string;
-      const bucket = p['bucket'] as string;
+      const blob = await getLocalBlob(p['blob_key'] as string);
+      if (!blob) throw new SyncError('The file is no longer on this device', 404);
 
-      const photo = await db.photos.get(photoId);
-      if (!photo?.blob) throw new SyncError('Local blob not found', 404);
+      const { error } = await supabase.storage
+        .from(p['bucket'] as string)
+        .upload(storagePath, blob, { upsert: true, contentType: blob.type || undefined });
+      if (error) throw new SyncError(error.message, statusOf(error));
+      // The blob stays until the PDF is made, so it can be embedded without a download
+      break;
+    }
 
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(storagePath, photo.blob, { upsert: true });
-      if (uploadError) {
-        throw new SyncError(uploadError.message, (uploadError as { status?: number }).status);
+    case 'generate_pdf': {
+      const { generateAndUploadPDF } = await import('../pdf/generatePDF');
+      try {
+        await generateAndUploadPDF(p['jobsheet_id'] as string);
+      } catch (err) {
+        throw new SyncError(err instanceof Error ? err.message : String(err), statusOf(err));
       }
-
-      // Update photos row with storage_path, clear blob
-      await db.photos.update(photoId, { storage_path: storagePath, blob: undefined });
-      await supabase
-        .from('photos')
-        .update({ storage_path: storagePath })
-        .eq('id', photoId);
       break;
     }
   }
+}
+
+/** HTTP status carried by Supabase/storage errors (and PDFError); undefined means a network failure. */
+function statusOf(err: unknown): number | undefined {
+  const e = err as { status?: unknown; statusCode?: unknown } | null;
+  const raw = e?.status ?? e?.statusCode;
+  const n = typeof raw === 'string' ? Number(raw) : raw;
+  return typeof n === 'number' && Number.isFinite(n) ? n : undefined;
 }
 
 // ─── Flush ───────────────────────────────────────────────────────────────────
@@ -201,11 +209,6 @@ export async function flushQueue(): Promise<{ synced: number; failed: number }> 
         // Success — remove from queue
         await db.sync_queue.delete(item.id);
         synced++;
-
-        // After a jobsheet is synced and submitted, trigger PDF generation
-        if (item.table === 'jobsheets' && item.payload['submitted_at']) {
-          triggerPDFGeneration(item.payload['id'] as string).catch(() => {/* silent */});
-        }
 
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -262,40 +265,6 @@ export async function retryItem(id: string) {
 export async function discardItem(id: string) {
   await db.sync_queue.delete(id);
   await updateQueueLength();
-}
-
-async function triggerPDFGeneration(jobsheetId: string) {
-  try {
-    const { generateAndUploadPDF } = await import('../pdf/generatePDF');
-    const jobsheet = await db.jobsheets.get(jobsheetId);
-    if (!jobsheet) return;
-
-    const job = await db.jobs.get(jobsheet.job_id);
-    if (!job) return;
-
-    const site = await db.sites.get(job.site_id);
-    if (!site) return;
-
-    const customer = await db.customers.get(site.customer_id);
-    if (!customer) return;
-
-    const profile = await db.profiles.where('company_id').equals(jobsheet.company_id).first();
-    if (!profile) return;
-
-    const company = await db.companies.get(jobsheet.company_id);
-    if (!company) return;
-
-    const photos = await db.photos.where('jobsheet_id').equals(jobsheetId).toArray();
-    const remedials = await db.remedials.where('jobsheet_id').equals(jobsheetId).toArray();
-
-    // Dynamically import template
-    const templateModule = await import(`../templates/${jobsheet.template_id}.json`);
-    const template = templateModule.default;
-
-    await generateAndUploadPDF(jobsheet, job, site, customer, company, profile, photos, remedials, template);
-  } catch {
-    // PDF generation failed silently — manager will see "generating..." state
-  }
 }
 
 let started = false;

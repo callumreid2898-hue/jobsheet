@@ -147,10 +147,10 @@ export interface Jobsheet {
   answers: AnswersMap;
   time_on_site: string | null;
   time_off_site: string | null;
-  engineer_signature_url: string | null;
-  customer_signature_url: string | null;
+  engineer_signature_url: string | null; // photos-bucket path, despite the name
+  customer_signature_url: string | null; // photos-bucket path
   submitted_at: string | null;
-  pdf_url: string | null;
+  pdf_path: string | null;               // pdfs-bucket path; sign it to open
   created_at: string;
   updated_at: string;
 }
@@ -259,10 +259,11 @@ export interface PassFailNote {
 
 export type ChecklistAnswers = Record<string, boolean>;
 
+// storage_path is the photos-bucket path. Until it's uploaded the image lives in
+// db.blobs under the same key.
 export interface PhotoRef {
   id: string;
-  local_uri?: string; // object URL for offline preview
-  storage_path?: string;
+  storage_path: string;
   caption?: string;
 }
 
@@ -277,7 +278,9 @@ export interface SignatureRef {
 // insert: INSERT … ON CONFLICT DO NOTHING — safe to retry on insert-only tables.
 // update: payload is { id, ...patch }.
 // rpc:    payload is { fn, args }.
-export type SyncOperation = 'upsert' | 'insert' | 'update' | 'delete' | 'rpc' | 'storage_upload';
+// storage_upload: payload is { bucket, storage_path, blob_key } (blob_key into db.blobs).
+// generate_pdf:   payload is { jobsheet_id }.
+export type SyncOperation = 'upsert' | 'insert' | 'update' | 'delete' | 'rpc' | 'storage_upload' | 'generate_pdf';
 
 // pending: will be retried (with backoff after transient errors).
 // failed:  rejected by the server; needs a retry or discard from the Sync screen.
@@ -321,10 +324,16 @@ export interface AuthContextValue {
 // id is deterministic (see remedialIdFor), so re-running detection gives the same rows.
 export type RemedialCreate = Omit<Remedial, 'created_at' | 'updated_at' | 'status'>;
 
-// ─── Photo with local Dexie blob (extended for offline storage) ───────────────
+// ─── Local files waiting to upload (photos, signatures) ──────────────────────
 
-export interface PhotoLocal extends Photo {
-  blob?: Blob;
+// Bytes rather than a Blob: some browsers (older iOS Safari, Chromium private
+// contexts) fail to store Blobs in IndexedDB. Read with getLocalBlob().
+export interface LocalBlob {
+  id: string;          // the storage path it will be uploaded to
+  jobsheet_id: string;
+  data: ArrayBuffer;
+  type: string;        // MIME type
+  created_at: string;
 }
 
 // ─── Phase 3: Contracts ───────────────────────────────────────────────────────

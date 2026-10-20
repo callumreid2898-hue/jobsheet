@@ -44,15 +44,18 @@ function fixtures(): Record<string, Row[]> {
     }],
     jobsheets: [],
     remedials: [],
+    photos: [],
   };
 }
 
 interface Write { method: string; table: string; body: unknown; prefer: string }
+interface Upload { bucket: string; path: string; body: string }
 
 /** A small stateful PostgREST fake: eq filters, single-object Accept, upsert by id, PATCH, set_job_status. */
 async function fakeSupabase(page: Page) {
   const db = fixtures();
   const writes: Write[] = [];
+  const uploads: Upload[] = [];
 
   const filterRows = (rows: Row[], params: URLSearchParams) => rows.filter(r =>
     [...params.entries()].every(([k, v]) => !v.startsWith('eq.') || String(r[k]) === v.slice(3)));
@@ -65,7 +68,13 @@ async function fakeSupabase(page: Page) {
       route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
     if (path.startsWith('/auth/v1/')) return json(200, {});
-    if (path.startsWith('/storage/v1/')) return json(200, { Key: 'ok' });
+    // Uploads: POST /storage/v1/object/{bucket}/{path}. Downloads/signing aren't needed (files are still local).
+    const upload = path.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/);
+    if (upload && req.method() === 'POST') {
+      uploads.push({ bucket: upload[1], path: decodeURIComponent(upload[2]), body: (req.postDataBuffer() ?? Buffer.alloc(0)).toString('latin1') });
+      return json(200, { Key: `${upload[1]}/${upload[2]}` });
+    }
+    if (path.startsWith('/storage/v1/')) return json(400, { error: 'not found', message: 'Object not found' });
 
     if (path === '/rest/v1/rpc/set_job_status') {
       const { p_job_id, p_status } = req.postDataJSON();
@@ -111,8 +120,14 @@ async function fakeSupabase(page: Page) {
     return json(200, {});
   });
 
-  return { db, writes };
+  return { db, writes, uploads };
 }
+
+// 2x2 red PNG
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGP4z8DAwMDAwMAAAA0ZAQDs3p7mAAAAAElFTkSuQmCC',
+  'base64',
+);
 
 async function signIn(page: Page) {
   const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -137,7 +152,7 @@ const field = (page: Page, label: string) =>
 test.use({ serviceWorkers: 'block', timezoneId: 'Europe/London' });
 
 test('engineer: travel, arrive, fill, submit once, cannot resubmit', async ({ page }) => {
-  const { db, writes } = await fakeSupabase(page);
+  const { db, writes, uploads } = await fakeSupabase(page);
   await signIn(page);
   const rpcs = () => writes.filter(w => w.method === 'RPC').map(w => (w.body as Row).p_status);
 
@@ -174,6 +189,11 @@ test('engineer: travel, arrive, fill, submit once, cannot resubmit', async ({ pa
   await field(page, 'Recommended actions').locator('textarea').fill('Replace sounder\nFix cable');
   await field(page, 'System left in').locator('select').selectOption({ index: 1 });
 
+  // A photo is saved on the device straight away (nothing is uploaded before submit)
+  await field(page, 'Photos').locator('input[type=file]').setInputFiles({ name: 'panel.png', mimeType: 'image/png', buffer: PNG });
+  await expect(field(page, 'Photos').getByAltText('Photos')).toBeVisible();
+  expect(uploads).toHaveLength(0);
+
   const sig = field(page, 'Engineer signature');
   await sig.locator('canvas').scrollIntoViewIfNeeded();
   const box = (await sig.locator('canvas').boundingBox())!;
@@ -199,6 +219,29 @@ test('engineer: travel, arrive, fill, submit once, cannot resubmit', async ({ pa
   expect(db.jobsheets[0]).toMatchObject({ id: jobsheetId });
   expect(db.jobsheets[0].submitted_at).toBeTruthy();
   expect(writes.some(w => w.table === 'audit_log')).toBe(false);
+
+  // The signature and photo go to the photos bucket under the jobsheet; the jobsheet stores paths
+  const base = `${COMPANY_ID}/${jobsheetId}`;
+  await expect.poll(() => uploads.length).toBe(3);
+  expect(uploads.map(u => `${u.bucket}:${u.path}`)).toEqual(expect.arrayContaining([
+    `photos:${base}/signatures/engineer.png`,
+    expect.stringMatching(new RegExp(`^photos:${base}/[0-9a-f-]{36}[.]jpg$`)),
+    `pdfs:${base}/report.pdf`,
+  ]));
+  expect(uploads.find(u => u.path.endsWith('engineer.png'))!.body).toContain('image/png');
+  expect(uploads.find(u => u.path.endsWith('.jpg'))!.body).toContain('image/jpeg'); // re-encoded
+  expect(db.jobsheets[0]).toMatchObject({ engineer_signature_url: `${base}/signatures/engineer.png`, customer_signature_url: null });
+  expect(JSON.stringify(db.jobsheets[0].answers)).not.toContain('data:image');
+  expect(db.photos).toHaveLength(1);
+  expect(db.photos[0]).toMatchObject({ jobsheet_id: jobsheetId, caption: 'Photos' });
+
+  // The PDF is made after everything above, uploaded to the private bucket, and stored as a path
+  const pdf = uploads.find(u => u.bucket === 'pdfs')!;
+  // Chromium doesn't expose Blob parts of multipart bodies, so only the part headers are visible
+  // here; tests/unit/pdf.test.ts checks the rendered bytes.
+  expect(pdf.body).toContain('application/pdf');
+  expect(uploads.indexOf(pdf)).toBe(uploads.length - 1);
+  await expect.poll(() => db.jobsheets[0].pdf_path).toBe(`${base}/report.pdf`);
   await expect(page.getByRole('heading', { name: 'Job Submitted' })).toBeVisible();
 
   // Opening the form again goes back to the submitted screen
