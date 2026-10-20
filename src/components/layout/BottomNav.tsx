@@ -1,6 +1,8 @@
 import { NavLink } from 'react-router-dom';
+import { useSync } from '../../offline/useSync';
 
 export function BottomNav() {
+  const { queueLength, failedCount } = useSync();
   const activeClass = 'text-[#0D3349]';
   const inactiveClass = 'text-gray-400';
 
@@ -46,17 +48,22 @@ export function BottomNav() {
           Scan
         </NavLink>
 
-        {/* Sync (overlay/indicator) */}
+        {/* Sync queue, sign-out */}
         <NavLink
-          to="/jobs"
-          className={({ isActive: _ }) =>
-            `flex-1 flex flex-col items-center py-2 text-xs font-medium ${inactiveClass}`
+          to="/sync"
+          className={({ isActive }) =>
+            `relative flex-1 flex flex-col items-center py-2 text-xs font-medium ${isActive ? activeClass : inactiveClass}`
           }
-          aria-label="Sync status"
+          aria-label={queueLength > 0 ? `Sync, ${queueLength} waiting` : 'Sync'}
         >
           <svg className="w-6 h-6 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
+          {queueLength > 0 && (
+            <span className={`absolute top-1 left-1/2 ml-2 min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 text-white ${failedCount > 0 ? 'bg-red-500' : 'bg-amber-500'}`}>
+              {queueLength}
+            </span>
+          )}
           Sync
         </NavLink>
       </div>

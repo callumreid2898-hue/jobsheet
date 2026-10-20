@@ -1,150 +1,281 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import 'fake-indexeddb/auto';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock Dexie db before importing syncEngine
-vi.mock('../../src/lib/db', () => ({
-  db: {
-    sync_queue: {
-      count: vi.fn().mockResolvedValue(0),
-      where: vi.fn().mockReturnThis(),
-      aboveOrEqual: vi.fn().mockReturnThis(),
-      orderBy: vi.fn().mockReturnThis(),
-      toArray: vi.fn().mockResolvedValue([]),
-      delete: vi.fn().mockResolvedValue(undefined),
-      update: vi.fn().mockResolvedValue(undefined),
-      add: vi.fn().mockResolvedValue(undefined),
-    },
-    photos: {
-      get: vi.fn().mockResolvedValue(null),
-      update: vi.fn().mockResolvedValue(undefined),
-    },
-    jobsheets: {
-      get: vi.fn().mockResolvedValue(null),
-    },
-    jobs: { get: vi.fn().mockResolvedValue(null) },
-    sites: { get: vi.fn().mockResolvedValue(null) },
-    customers: { get: vi.fn().mockResolvedValue(null) },
-    profiles: { where: vi.fn().mockReturnThis(), equals: vi.fn().mockReturnThis(), first: vi.fn().mockResolvedValue(null) },
-    companies: { get: vi.fn().mockResolvedValue(null) },
-    remedials: { where: vi.fn().mockReturnThis(), equals: vi.fn().mockReturnThis(), toArray: vi.fn().mockResolvedValue([]) },
-  },
+// Every Supabase call is recorded; `respond` decides the result.
+type Call = { table: string; op: string; row?: unknown; opts?: unknown; id?: unknown };
+const sb = vi.hoisted(() => ({
+  calls: [] as Call[],
+  respond: (_c: Call): { error: { message: string } | null; status: number } => ({ error: null, status: 200 }),
 }));
 
-// Mock Supabase
-vi.mock('../../src/lib/supabaseClient', () => ({
-  supabase: {
-    from: vi.fn().mockReturnValue({
-      upsert: vi.fn().mockResolvedValue({ error: null }),
-      delete: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockResolvedValue({ error: null }),
-      update: vi.fn().mockReturnThis(),
-    }),
-    storage: {
-      from: vi.fn().mockReturnValue({
-        upload: vi.fn().mockResolvedValue({ error: null }),
+vi.mock('../../src/lib/supabaseClient', () => {
+  const result = (c: Call) => {
+    sb.calls.push(c);
+    return Promise.resolve(sb.respond(c));
+  };
+  return {
+    supabase: {
+      from: (table: string) => ({
+        upsert: (row: unknown, opts?: unknown) => result({ table, op: 'upsert', row, opts }),
+        update: (row: unknown) => ({ eq: (_col: string, id: unknown) => result({ table, op: 'update', row, id }) }),
+        delete: () => ({ eq: (_col: string, id: unknown) => result({ table, op: 'delete', id }) }),
       }),
+      rpc: (fn: string, args: unknown) => result({ table: 'rpc', op: fn, row: args }),
+      storage: { from: () => ({ upload: vi.fn().mockResolvedValue({ error: null }) }) },
     },
-  },
-}));
+  };
+});
 
-// Mock navigator.onLine
-Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true });
+import { db } from '../../src/lib/db';
+import {
+  flushQueue, setSyncIdentity, subscribeToSync, isTransient, backoffDelay, type SyncState,
+} from '../../src/lib/syncEngine';
+import { enqueueSync, enqueueJobStatus, syncKey } from '../../src/offline/SyncQueue';
+import type { SyncQueueItem } from '../../src/types';
+
+const USER_A = 'user-a';
+const USER_B = 'user-b';
+
+function setOnline(value: boolean) {
+  Object.defineProperty(navigator, 'onLine', { value, writable: true, configurable: true });
+}
+
+beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+  setOnline(true);
+  setSyncIdentity(null, null);
+  await db.sync_queue.clear();
+  sb.calls = [];
+  sb.respond = () => ({ error: null, status: 200 });
+  setSyncIdentity(USER_A, 'co-a');
+  vi.clearAllTimers(); // drop the flush that signing in schedules
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+const queue = () => db.sync_queue.orderBy('seq').toArray();
 
 describe('subscribeToSync', () => {
-  beforeEach(async () => {
-    // Re-import module to reset module-level state between test groups
-    vi.resetModules();
-  });
-
-  it('immediately calls listener with current state on subscribe', async () => {
-    const { subscribeToSync } = await import('../../src/lib/syncEngine');
+  it('immediately calls listener with current state on subscribe', () => {
     const listener = vi.fn();
     const unsubscribe = subscribeToSync(listener);
-
     expect(listener).toHaveBeenCalledTimes(1);
-    const state = listener.mock.calls[0][0];
-    expect(state).toMatchObject({
-      isSyncing: false,
-      queueLength: 0,
-      failedCount: 0,
-      lastSyncedAt: null,
-    });
-
+    expect(listener.mock.calls[0][0]).toMatchObject({ isSyncing: false });
     unsubscribe();
   });
 
   it('unsubscribe stops listener from receiving updates', async () => {
-    const { subscribeToSync, flushQueue } = await import('../../src/lib/syncEngine');
     const listener = vi.fn();
-    const unsubscribe = subscribeToSync(listener);
-    unsubscribe();
-
+    subscribeToSync(listener)();
     listener.mockClear();
     await flushQueue();
-
-    // Listener should not have been called after unsubscribe
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it('multiple listeners all receive state updates', async () => {
-    const { subscribeToSync } = await import('../../src/lib/syncEngine');
-    const listener1 = vi.fn();
-    const listener2 = vi.fn();
-
-    const unsub1 = subscribeToSync(listener1);
-    const unsub2 = subscribeToSync(listener2);
-
-    // Both should have been called on subscribe
-    expect(listener1).toHaveBeenCalledTimes(1);
-    expect(listener2).toHaveBeenCalledTimes(1);
-
-    unsub1();
-    unsub2();
+  it('reports queue length and failed count for the current user', async () => {
+    await enqueueSync({ table: 'jobs', operation: 'update', payload: { id: 'j1', notes: 'x' } });
+    sb.respond = () => ({ error: { message: 'denied' }, status: 403 });
+    let last: SyncState | null = null;
+    const unsub = subscribeToSync(s => { last = s; });
+    await flushQueue();
+    unsub();
+    expect(last).toMatchObject({ queueLength: 1, failedCount: 1, isSyncing: false });
   });
 });
 
-describe('flushQueue', () => {
+describe('enqueueSync', () => {
+  it('stamps user, company, a monotonic seq and the entity key', async () => {
+    await enqueueSync({ table: 'jobsheets', operation: 'insert', payload: { id: 'js1', company_id: 'co-a' } });
+    await enqueueJobStatus('j1', 'on_site');
+    const [a, b] = await queue();
+    expect(a).toMatchObject({ user_id: USER_A, company_id: 'co-a', status: 'pending', entity_key: 'jobsheets:js1' });
+    expect(b).toMatchObject({ user_id: USER_A, company_id: 'co-a', entity_key: 'jobs:j1', operation: 'rpc' });
+    expect(b.seq).toBeGreaterThan(a.seq);
+  });
+
+  it('triggers a flush when online', async () => {
+    await enqueueSync({ table: 'remedials', operation: 'insert', payload: { id: 'r1' } });
+    expect(sb.calls).toHaveLength(0);
+    await vi.runOnlyPendingTimersAsync();
+    await vi.waitFor(async () => expect(await db.sync_queue.count()).toBe(0));
+    expect(sb.calls).toHaveLength(1);
+  });
+
+  it('several quick enqueues are sent in one debounced flush', async () => {
+    await enqueueSync({ table: 'remedials', operation: 'insert', payload: { id: 'r1' } });
+    await enqueueSync({ table: 'remedials', operation: 'insert', payload: { id: 'r2' } });
+    await vi.runOnlyPendingTimersAsync();
+    await vi.waitFor(async () => expect(await db.sync_queue.count()).toBe(0));
+    expect(sb.calls.map(c => (c.row as { id: string }).id)).toEqual(['r1', 'r2']);
+  });
+});
+
+describe('flushQueue operations', () => {
+  it('success deletes the item', async () => {
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'j1' } });
+    expect(await flushQueue()).toEqual({ synced: 1, failed: 0 });
+    expect(await db.sync_queue.count()).toBe(0);
+  });
+
+  it('insert ignores duplicates so a retried insert is harmless', async () => {
+    await enqueueSync({ table: 'remedials', operation: 'insert', payload: { id: 'r1' } });
+    await flushQueue();
+    expect(sb.calls[0]).toMatchObject({ op: 'upsert', opts: { onConflict: 'id', ignoreDuplicates: true } });
+  });
+
+  it('update sends only the patch, keyed by id', async () => {
+    await enqueueSync({ table: 'jobs', operation: 'update', payload: { id: 'j1', assigned_engineer_id: 'p2' } });
+    await flushQueue();
+    expect(sb.calls[0]).toEqual({ table: 'jobs', op: 'update', row: { assigned_engineer_id: 'p2' }, id: 'j1' });
+  });
+
+  it('job status goes through set_job_status', async () => {
+    await enqueueJobStatus('j1', 'awaiting_review');
+    await flushQueue();
+    expect(sb.calls[0]).toEqual({ table: 'rpc', op: 'set_job_status', row: { p_job_id: 'j1', p_status: 'awaiting_review' } });
+  });
+
+  it('does nothing without a signed-in user', async () => {
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'j1' } });
+    setSyncIdentity(null, null);
+    expect(await flushQueue()).toEqual({ synced: 0, failed: 0 });
+    expect(sb.calls).toHaveLength(0);
+  });
+
   it('returns early when offline', async () => {
-    Object.defineProperty(navigator, 'onLine', { value: false, writable: true, configurable: true });
-    const { flushQueue } = await import('../../src/lib/syncEngine');
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'j1' } });
+    setOnline(false);
+    expect(await flushQueue()).toEqual({ synced: 0, failed: 0 });
+    expect(sb.calls).toHaveLength(0);
+  });
+});
 
-    const result = await flushQueue();
-    expect(result).toEqual({ synced: 0, failed: 0 });
-
-    Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true });
+describe('flushQueue errors', () => {
+  it('a permanent (4xx) failure marks the item failed with last_error', async () => {
+    await enqueueJobStatus('j1', 'invoiced');
+    sb.respond = () => ({ error: { message: 'engineers cannot move a job' }, status: 403 });
+    expect(await flushQueue()).toEqual({ synced: 0, failed: 1 });
+    const [item] = await queue();
+    expect(item).toMatchObject({ status: 'failed', attempts: 1, last_error: 'engineers cannot move a job', next_attempt_at: null });
   });
 
-  it('returns zero counts when queue is empty', async () => {
-    Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true });
-    vi.resetModules();
-    const { flushQueue } = await import('../../src/lib/syncEngine');
+  it('a transient failure stays pending with a backoff', async () => {
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'j1' } });
+    sb.respond = () => ({ error: { message: 'Failed to fetch' }, status: 0 });
+    await flushQueue();
+    const [item] = await queue();
+    expect(item.status).toBe('pending');
+    expect(item.attempts).toBe(1);
+    expect(Date.parse(item.next_attempt_at!)).toBeGreaterThan(Date.now());
 
-    const result = await flushQueue();
-    expect(result.synced).toBe(0);
-    expect(result.failed).toBe(0);
+    // Not retried until the backoff has passed
+    sb.calls = [];
+    await flushQueue();
+    expect(sb.calls).toHaveLength(0);
+
+    await db.sync_queue.update(item.id, { next_attempt_at: new Date(Date.now() - 1).toISOString() });
+    sb.respond = () => ({ error: null, status: 201 });
+    expect(await flushQueue()).toEqual({ synced: 1, failed: 0 });
   });
 
-  it('skips items with 5 or more attempts', async () => {
-    vi.resetModules();
+  it('transient errors never become permanent failures', async () => {
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'j1' } });
+    sb.respond = () => ({ error: { message: 'Bad gateway' }, status: 502 });
+    for (let i = 0; i < 7; i++) {
+      await db.sync_queue.toCollection().modify({ next_attempt_at: null });
+      await flushQueue();
+    }
+    const [item] = await queue();
+    expect(item).toMatchObject({ status: 'pending', attempts: 7 });
+  });
 
-    // Override the toArray mock to return a stuck item
-    const { db } = await import('../../src/lib/db');
-    vi.mocked(db.sync_queue.orderBy('').toArray).mockResolvedValueOnce([
-      {
-        id: 'item-1',
-        table: 'jobs',
-        operation: 'upsert',
-        payload: { id: 'job-1', status: 'submitted' },
-        created_at: new Date().toISOString(),
-        attempts: 5,
-        last_error: 'Network error',
-      },
+  it('already-failed items are counted but not resent', async () => {
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'j1' } });
+    await db.sync_queue.toCollection().modify({ status: 'failed' });
+    expect(await flushQueue()).toEqual({ synced: 0, failed: 1 });
+    expect(sb.calls).toHaveLength(0);
+  });
+
+  it('classifies statuses', () => {
+    expect([0, undefined, 401, 408, 429, 500, 503].every(isTransient)).toBe(true);
+    expect([400, 403, 404, 409, 422].some(isTransient)).toBe(false);
+    expect(backoffDelay(1)).toBe(5_000);
+    expect(backoffDelay(2)).toBe(10_000);
+    expect(backoffDelay(50)).toBe(15 * 60_000);
+  });
+});
+
+describe('flushQueue ordering', () => {
+  it('sends items in seq order regardless of created_at', async () => {
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'first' } });
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'second' } });
+    const [a] = await queue();
+    await db.sync_queue.update(a.id, { created_at: '2999-01-01T00:00:00Z' });
+    await flushQueue();
+    expect(sb.calls.map(c => (c.row as { id: string }).id)).toEqual(['first', 'second']);
+  });
+
+  it('children wait while their parent is unsent', async () => {
+    const jsKey = syncKey('jobsheets', 'js1');
+    await enqueueSync({ table: 'jobsheets', operation: 'upsert', payload: { id: 'js1' } });
+    await enqueueSync({ table: 'remedials', operation: 'insert', payload: { id: 'r1' }, depends_on: [jsKey] });
+    await enqueueJobStatus('j1', 'awaiting_review', [jsKey]);
+    await enqueueSync({ table: 'jobs', operation: 'update', payload: { id: 'j1', notes: 'later' } });
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'unrelated' } });
+
+    sb.respond = c => (c.table === 'jobsheets'
+      ? { error: { message: 'timeout' }, status: 504 }
+      : { error: null, status: 200 });
+    await flushQueue();
+
+    // Only the parent was tried, plus the unrelated row. The later write to j1 waits behind the status change.
+    expect(sb.calls.map(c => c.table)).toEqual(['jobsheets', 'jobs']);
+    expect((sb.calls[1].row as { id: string }).id).toBe('unrelated');
+    expect(await db.sync_queue.count()).toBe(4);
+
+    // Parent recovers, everything follows in order
+    await db.sync_queue.toCollection().modify({ next_attempt_at: null });
+    sb.respond = () => ({ error: null, status: 200 });
+    sb.calls = [];
+    expect(await flushQueue()).toEqual({ synced: 4, failed: 0 });
+    expect(sb.calls.map(c => `${c.table}:${c.op}`)).toEqual([
+      'jobsheets:upsert', 'remedials:upsert', 'rpc:set_job_status', 'jobs:update',
     ]);
+  });
 
-    const { flushQueue } = await import('../../src/lib/syncEngine');
-    const result = await flushQueue();
+  it('a failed parent keeps its children queued', async () => {
+    await enqueueSync({ table: 'jobsheets', operation: 'upsert', payload: { id: 'js1' } });
+    await enqueueSync({ table: 'remedials', operation: 'insert', payload: { id: 'r1' }, depends_on: ['jobsheets:js1'] });
+    sb.respond = () => ({ error: { message: 'rls' }, status: 403 });
+    await flushQueue();
+    sb.calls = [];
+    sb.respond = () => ({ error: null, status: 200 });
+    await flushQueue();
+    expect(sb.calls).toHaveLength(0);
+    expect((await queue()).map(i => i.status)).toEqual(['failed', 'pending']);
+  });
+});
 
-    // Item has 5 attempts so should be counted as failed, not processed
-    expect(result.failed).toBe(1);
-    expect(result.synced).toBe(0);
+describe('flushQueue users', () => {
+  it("skips another user's items", async () => {
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'mine' } });
+    setSyncIdentity(USER_B, 'co-b');
+    vi.clearAllTimers();
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'theirs' } });
+    vi.clearAllTimers();
+
+    expect(await flushQueue()).toEqual({ synced: 1, failed: 0 });
+    expect(sb.calls.map(c => (c.row as { id: string }).id)).toEqual(['theirs']);
+    const left: SyncQueueItem[] = await queue();
+    expect(left.map(i => i.user_id)).toEqual([USER_A]);
+  });
+
+  it('ignores pre-v5 items with no owner', async () => {
+    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: { id: 'legacy' } });
+    await db.sync_queue.toCollection().modify({ user_id: null });
+    expect(await flushQueue()).toEqual({ synced: 0, failed: 0 });
+    expect(sb.calls).toHaveLength(0);
   });
 });

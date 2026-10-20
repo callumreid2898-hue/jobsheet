@@ -14,7 +14,7 @@ import {
 const footerStyles = StyleSheet.create({
   footer: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 30,
     left: 30,
     right: 30,
     flexDirection: 'row',
@@ -23,6 +23,18 @@ const footerStyles = StyleSheet.create({
     paddingTop: 6,
   },
   footerText: { fontSize: 7, color: '#6b7280' },
+  disclaimer: {
+    position: 'absolute',
+    bottom: 10,
+    left: 30,
+    right: 30,
+  },
+  disclaimerText: {
+    fontSize: 6.5,
+    color: '#9ca3af',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
 });
 
 export interface JobsheetPDFProps {
@@ -52,14 +64,14 @@ export function JobsheetPDF({
 
   return (
     <Document
-      title={`Jobsheet ${jobRef}`}
+      title={`${template.name} — ${jobRef}`}
       author={company.name}
       subject={template.name}
-      creator="Jobsheet PWA"
+      creator={company.name}
     >
       <Page size="A4" style={pdfStyles.page}>
-        {/* Header: company logo + name + "JOBSHEET" */}
-        <PDFHeader company={company} />
+        {/* Header: company logo + name left, template title right */}
+        <PDFHeader company={company} templateTitle={template.name.toUpperCase()} />
 
         {/* Blue info bar: site, customer, engineer, date, type, status */}
         <PDFJobInfoBar
@@ -69,10 +81,10 @@ export function JobsheetPDF({
           engineer={engineerProfile}
         />
 
-        {/* Template name + job reference */}
+        {/* Job reference + time on site */}
         <View style={{ marginBottom: 8 }}>
           <Text style={{ fontSize: 9, color: '#6b7280' }}>
-            {template.name} · Ref: {jobRef}
+            Ref: {jobRef}
           </Text>
           {(jobsheet.time_on_site || jobsheet.time_off_site) && (
             <Text style={{ fontSize: 9, color: '#6b7280', marginTop: 2 }}>
@@ -98,15 +110,16 @@ export function JobsheetPDF({
         {/* Photos grid (only if any have a storage path) */}
         <PDFPhotosSection photos={photos} />
 
-        {/* Dual signature boxes */}
+        {/* Dual signature boxes with EMTEC-style labels */}
         <PDFSignatureBoxes
           engineerSignatureUrl={jobsheet.engineer_signature_url}
           customerSignatureUrl={jobsheet.customer_signature_url}
           engineerName={engineerProfile.full_name}
+          companyName={company.name}
           submittedAt={jobsheet.submitted_at}
         />
 
-        {/* Footer */}
+        {/* Footer: ref + page count + submitted */}
         <View style={footerStyles.footer} fixed>
           <Text style={footerStyles.footerText}>
             {company.name} · {jobRef}
@@ -121,6 +134,13 @@ export function JobsheetPDF({
             {jobsheet.submitted_at
               ? `Submitted ${new Date(jobsheet.submitted_at).toLocaleDateString('en-GB')}`
               : 'Draft'}
+          </Text>
+        </View>
+
+        {/* EMTEC-style disclaimer */}
+        <View style={footerStyles.disclaimer} fixed>
+          <Text style={footerStyles.disclaimerText}>
+            THIS CERTIFICATE IS VALID ONLY IF ISSUED BY AN ENGINEER WORKING FOR AND UNDER THE MANAGEMENT OF {company.name.toUpperCase()}
           </Text>
         </View>
       </Page>

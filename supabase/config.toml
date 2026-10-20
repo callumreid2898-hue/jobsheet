@@ -26,9 +26,10 @@ file_size_limit = "50MiB"
 site_url = "http://localhost:5173"
 additional_redirect_urls = ["http://localhost:5173/auth/callback"]
 jwt_expiry = 3600
-enable_signup = true
+# Accounts are created by invite only (see invites table, migration 00010).
+enable_signup = false
 
 [auth.email]
-enable_signup = true
+enable_signup = false
 double_confirm_changes = false
 enable_confirmations = false

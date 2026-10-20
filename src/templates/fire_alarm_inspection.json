@@ -1,0 +1,284 @@
+{
+  "id": "fire_alarm_inspection",
+  "name": "Fire Alarm Test & Inspection Certificate",
+  "system_type": "fire_alarm",
+  "job_type": "ppm_service",
+  "version": 1,
+  "sections": [
+    {
+      "id": "panel_details",
+      "title": "Panel Details",
+      "fields": [
+        { "id": "panel_make_model", "type": "text", "label": "Panel Make / Model" },
+        { "id": "sp203_cert_no", "type": "text", "label": "SP203 Certificate No" },
+        { "id": "lps1014_cert_no", "type": "text", "label": "LPS1014 Certificate No" },
+        { "id": "category", "type": "text", "label": "Category", "hint": "L / P / M" },
+        { "id": "loops_circuits", "type": "number", "label": "Loops / Circuits" },
+        { "id": "zones", "type": "number", "label": "Zones" },
+        { "id": "qty_smoke_detectors", "type": "number", "label": "Qty Smoke Detectors" },
+        { "id": "qty_heat_detectors", "type": "number", "label": "Qty Heat Detectors" },
+        { "id": "qty_sounders", "type": "number", "label": "Qty Sounders" },
+        { "id": "qty_call_points", "type": "number", "label": "Qty Call Points" },
+        { "id": "aspirating_system", "type": "yes_no_na", "label": "Aspirating System" }
+      ]
+    },
+    {
+      "id": "inspection_info",
+      "title": "Inspection Info",
+      "fields": [
+        { "id": "inspection_number", "type": "text", "label": "This inspection" },
+        { "id": "inspection_total", "type": "text", "label": "of (total for contract year)" },
+        {
+          "id": "inspection_type",
+          "type": "select",
+          "label": "Inspection Type",
+          "options": ["Periodic (Section A)", "Annual (Section A & B)"]
+        },
+        {
+          "id": "extent_of_system",
+          "type": "longtext",
+          "label": "Extent of system covered by this certificate"
+        },
+        {
+          "id": "devices_tested_this_visit",
+          "type": "longtext",
+          "label": "List of devices or areas tested this visit"
+        }
+      ]
+    },
+    {
+      "id": "section_a_log",
+      "title": "Section A — Log Book & Documentation",
+      "fields": [
+        {
+          "id": "all_faults_attended",
+          "type": "yes_no_na",
+          "label": "All logged faults have received appropriate attention",
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "false_alarms_12m",
+          "type": "number",
+          "label": "Number of false alarms in last 12 months"
+        },
+        {
+          "id": "false_alarm_rate",
+          "type": "text",
+          "label": "False alarm rate (per 100 detectors)"
+        },
+        {
+          "id": "as_installed_drawings",
+          "type": "yes_no_na",
+          "label": "As installed drawings / specification available"
+        },
+        {
+          "id": "zone_chart_displayed",
+          "type": "yes_no_na",
+          "label": "Zone chart clearly displayed adjacent to panel"
+        },
+        {
+          "id": "battery_capacity_ah",
+          "type": "number",
+          "label": "Battery capacity (Ah)"
+        },
+        {
+          "id": "charging_voltage",
+          "type": "text",
+          "label": "Charging voltage (V)"
+        },
+        {
+          "id": "battery_installation_date",
+          "type": "text",
+          "label": "Battery installation date"
+        },
+        {
+          "id": "log_book_updated",
+          "type": "yes_no_na",
+          "label": "Log book updated",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "section_a_fire_tests",
+      "title": "Section A — Fire Indication Tests",
+      "repeatable": true,
+      "repeat_label": "Device",
+      "fields": [
+        { "id": "device_ref", "type": "text", "label": "Device reference" },
+        {
+          "id": "device_type",
+          "type": "select",
+          "label": "Device type",
+          "options": [
+            "smoke detector",
+            "heat detector",
+            "call point",
+            "sounder",
+            "beam detector",
+            "other"
+          ]
+        },
+        { "id": "circuit", "type": "text", "label": "Circuit / zone" },
+        {
+          "id": "result",
+          "type": "pass_fail_note",
+          "label": "Test result",
+          "triggers_remedial": true,
+          "remedialOn": "fail",
+          "remedial_priority": "urgent"
+        }
+      ]
+    },
+    {
+      "id": "section_a_fault_tests",
+      "title": "Section A — Fault Indication Tests",
+      "fields": [
+        {
+          "id": "open_circuit_detector",
+          "type": "pass_fail_note",
+          "label": "Open circuit fault — detector circuit",
+          "triggers_remedial": true,
+          "remedialOn": "fail",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "short_circuit_detector",
+          "type": "pass_fail_note",
+          "label": "Short circuit fault — detector circuit",
+          "triggers_remedial": true,
+          "remedialOn": "fail",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "open_circuit_sounder",
+          "type": "pass_fail_note",
+          "label": "Open circuit fault — sounder circuit",
+          "triggers_remedial": true,
+          "remedialOn": "fail",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "remote_signalling",
+          "type": "yes_no_na",
+          "label": "Remote signalling to ARC checked",
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "recommended"
+        }
+      ]
+    },
+    {
+      "id": "section_a_visual",
+      "title": "Section A — Visual Inspection",
+      "fields": [
+        {
+          "id": "building_changes",
+          "type": "yes_no_na",
+          "label": "Any additions or changes to building structure or layout since last visit"
+        },
+        {
+          "id": "use_changes",
+          "type": "yes_no_na",
+          "label": "Any changes in use or occupation since last visit"
+        },
+        {
+          "id": "detector_spacing",
+          "type": "yes_no_na",
+          "label": "At least 500mm free space maintained beneath each detector"
+        },
+        {
+          "id": "mcp_unobstructed",
+          "type": "yes_no_na",
+          "label": "All manual call points unobstructed and conspicuous"
+        },
+        {
+          "id": "storage_300mm",
+          "type": "yes_no_na",
+          "label": "Storage does not encroach within 300mm of ceilings"
+        },
+        {
+          "id": "system_design_compliant",
+          "type": "yes_no_na",
+          "label": "System design still complies with BS5839-1:2013",
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        }
+      ]
+    },
+    {
+      "id": "section_b_annual",
+      "title": "Section B — Annual Checks (Annual Only)",
+      "fields": [
+        {
+          "id": "cause_effect_doc",
+          "type": "select",
+          "label": "C&E document status",
+          "options": ["Available", "Not available", "No C&E"]
+        },
+        {
+          "id": "cause_effect_tested",
+          "type": "yes_no_na",
+          "label": "C&E programming tested",
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "recommended"
+        },
+        {
+          "id": "full_battery_test",
+          "type": "pass_fail_note",
+          "label": "Full battery test — capacity sufficient for standby period",
+          "triggers_remedial": true,
+          "remedialOn": "fail",
+          "remedial_priority": "recommended"
+        },
+        {
+          "id": "all_devices_tested_12m",
+          "type": "yes_no_na",
+          "label": "100% of devices tested over previous 12 months confirmed"
+        },
+        {
+          "id": "cable_fixings",
+          "type": "pass_fail_note",
+          "label": "All cable fixings secure and undamaged"
+        }
+      ]
+    },
+    {
+      "id": "variations_defects",
+      "title": "Variations & Defects",
+      "fields": [
+        {
+          "id": "variations_defects",
+          "type": "longtext",
+          "label": "List any variations, defects and follow-up recommendations"
+        }
+      ]
+    },
+    {
+      "id": "sign_off",
+      "title": "Sign-Off",
+      "fields": [
+        { "id": "next_inspection_due", "type": "text", "label": "Next inspection due by" },
+        {
+          "id": "sounder_testing_allowed",
+          "type": "yes_no_na",
+          "label": "Sounder testing was allowed on this inspection"
+        },
+        {
+          "id": "cause_effect_testing_allowed",
+          "type": "yes_no_na",
+          "label": "Cause & Effect testing was allowed on this inspection"
+        },
+        { "id": "engineer_name", "type": "text", "label": "Engineer Name" },
+        { "id": "engineer_signature", "type": "signature", "label": "Engineer Signature", "required": true },
+        { "id": "customer_name", "type": "text", "label": "Customer Name" },
+        { "id": "customer_signature", "type": "signature", "label": "Customer Signature" },
+        { "id": "sign_date", "type": "text", "label": "Date" }
+      ]
+    }
+  ]
+}

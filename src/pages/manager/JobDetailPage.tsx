@@ -208,7 +208,7 @@ export function JobDetailPage() {
     const updated: Job = { ...job, assigned_engineer_id: newVal };
     setJob(updated);
     await db.jobs.put(updated).catch(() => {});
-    enqueueSync({ table: 'jobs', operation: 'upsert', payload: updated as unknown as Record<string, unknown> });
+    await enqueueSync({ table: 'jobs', operation: 'update', payload: { id: job.id, assigned_engineer_id: newVal } });
     try {
       await supabase.from('jobs').update({ assigned_engineer_id: newVal }).eq('id', job.id);
     } catch {

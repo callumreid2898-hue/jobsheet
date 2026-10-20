@@ -59,14 +59,19 @@ All writes must:
 ### Sync Engine
 
 - `startSyncEngine()` is called once in `src/main.tsx`.
-- `flushQueue()` is idempotent; calling it while already syncing returns `{ synced: 0, failed: 0 }`.
-- Items with `attempts >= 5` are considered permanently failed and are skipped (but counted in `failedCount`).
+- `flushQueue()` is idempotent; calling it while already syncing returns `{ synced: 0, failed: 0 }` (and reruns once the current flush ends).
+- `enqueueSync()` schedules a debounced flush. The engine also flushes on `online`, on `visibilitychange`, every 30 s, and when `AuthProvider` sets the user via `setSyncIdentity()`.
+- Items are stamped with `user_id` and sent in `seq` order, only under that user's session.
+- Pick the operation by RLS: `insert` (ON CONFLICT DO NOTHING) for insert-only tables, `update` (a patch `{ id, ...fields }`) for edits, `upsert` only where the role has INSERT and UPDATE. Job status changes use `enqueueJobStatus()` (the `set_job_status` RPC).
+- An item waits while an earlier item for the same row (`entity_key`) or any `depends_on` key is unsent.
+- Network errors, 5xx, 401, 408 and 429 retry with backoff and stay `pending`. Other 4xx mark the item `failed`; the engineer retries or discards it on `/sync`.
+- Sign-out wipes Dexie (`clearLocalData()`), after a warning if the queue isn't empty.
 
 ### Routing & Auth
 
 - `<AuthProvider>` wraps the entire app in `App.tsx`.
 - `<AuthGuard roles={['engineer']}>` / `<AuthGuard roles={['manager']}>` protects routes.
-- Engineer routes: `/jobs`, `/jobs/:id`, `/jobs/:id/fill`, `/jobs/:id/submitted`.
+- Engineer routes: `/jobs`, `/jobs/:id`, `/jobs/:id/fill`, `/jobs/:id/submitted`, `/sync` (queue issues + sign-out).
 - Manager routes: `/manager/*` subtree.
 
 ### File Naming

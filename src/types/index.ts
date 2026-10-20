@@ -42,7 +42,10 @@ export type TemplateId =
   | 'reactive_callout'
   | 'fire_alarm_service'
   | 'emergency_lighting_test'
-  | 'cctv_maintenance';
+  | 'cctv_maintenance'
+  | 'cctv_handover'
+  | 'corrective_maintenance'
+  | 'fire_alarm_inspection';
 
 // ─── Database Row Types ────────────────────────────────────────────────────────
 // These match Supabase Postgres columns exactly.
@@ -129,6 +132,7 @@ export interface Job {
   scheduled_date: string; // 'YYYY-MM-DD'
   status: JobStatus;
   notes: string | null;
+  scheduled_time: string | null; // 'HH:mm'
   travelling_at: string | null;
   on_site_at: string | null;
   completed_at: string | null;
@@ -269,7 +273,15 @@ export interface SignatureRef {
 
 // ─── Sync Queue ───────────────────────────────────────────────────────────────
 
-export type SyncOperation = 'upsert' | 'delete' | 'storage_upload';
+// upsert: INSERT … ON CONFLICT UPDATE — only where the role has both privileges.
+// insert: INSERT … ON CONFLICT DO NOTHING — safe to retry on insert-only tables.
+// update: payload is { id, ...patch }.
+// rpc:    payload is { fn, args }.
+export type SyncOperation = 'upsert' | 'insert' | 'update' | 'delete' | 'rpc' | 'storage_upload';
+
+// pending: will be retried (with backoff after transient errors).
+// failed:  rejected by the server; needs a retry or discard from the Sync screen.
+export type SyncItemStatus = 'pending' | 'failed';
 
 export interface SyncQueueItem {
   id: string;
@@ -279,6 +291,13 @@ export interface SyncQueueItem {
   created_at: string;
   attempts: number;
   last_error: string | null;
+  seq: number;                  // monotonic; items are sent in this order
+  user_id: string | null;       // only flushed under this user's session (null = pre-v5 item)
+  company_id: string | null;
+  status: SyncItemStatus;
+  next_attempt_at: string | null;
+  entity_key: string;           // `${table}:${id}` of the row this item writes
+  depends_on: string[];         // entity keys that must sync first
 }
 
 // ─── Template / Form Engine ───────────────────────────────────────────────────
@@ -292,6 +311,8 @@ export interface AuthContextValue {
   profile: Profile | null;
   company: Company | null;
   isLoading: boolean;
+  previewRole: UserRole | null;
+  setPreviewRole: (role: UserRole | null) => void;
   signOut: () => Promise<void>;
 }
 

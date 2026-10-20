@@ -15,14 +15,15 @@ const colors = {
 };
 
 export const pdfStyles = StyleSheet.create({
-  page: { padding: 30, fontSize: 9, fontFamily: 'Helvetica', color: colors.textDark },
+  page: { padding: 30, paddingBottom: 60, fontSize: 9, fontFamily: 'Helvetica', color: colors.textDark },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, paddingBottom: 10, borderBottom: `2px solid ${colors.primary}` },
   headerLeft: { flex: 1 },
-  headerRight: { alignItems: 'flex-end' },
-  companyName: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: colors.primary },
-  companyAccred: { fontSize: 8, color: colors.textGray, marginTop: 2 },
-  companyAddress: { fontSize: 8, color: colors.textGray },
-  jobsheetTitle: { fontSize: 18, fontFamily: 'Helvetica-Bold', color: colors.primary },
+  headerRight: { alignItems: 'flex-end', maxWidth: '55%' },
+  companyName: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: colors.primary },
+  companyAccred: { fontSize: 7.5, color: colors.textGray, marginTop: 2 },
+  companyAddress: { fontSize: 7.5, color: colors.textGray },
+  companyPhone: { fontSize: 7.5, color: colors.textGray, marginTop: 1 },
+  docTitle: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: colors.primary, textAlign: 'right' },
   infoBar: { backgroundColor: colors.primary, padding: '6 10', borderRadius: 4, marginBottom: 10 },
   infoBarRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   infoBarItem: { flexDirection: 'column' },
@@ -52,13 +53,17 @@ export const pdfStyles = StyleSheet.create({
   photoItem: { width: '48%', marginBottom: 6 },
   photoImage: { width: '100%', height: 120, objectFit: 'cover', borderRadius: 4 },
   photoCaption: { fontSize: 7, color: colors.textGray, marginTop: 2 },
-  footer: { position: 'absolute', bottom: 20, left: 30, right: 30, flexDirection: 'row', justifyContent: 'space-between', borderTop: `1px solid ${colors.border}`, paddingTop: 6 },
+  footer: { position: 'absolute', bottom: 30, left: 30, right: 30, flexDirection: 'row', justifyContent: 'space-between', borderTop: `1px solid ${colors.border}`, paddingTop: 6 },
   footerText: { fontSize: 7, color: colors.textGray },
+  disclaimer: { position: 'absolute', bottom: 12, left: 30, right: 30 },
+  disclaimerText: { fontSize: 6.5, color: colors.textGray, textAlign: 'center', fontStyle: 'italic' },
   logo: { width: 48, height: 48, objectFit: 'contain', marginRight: 8 },
 });
 
-interface HeaderProps { company: Company; }
-export function PDFHeader({ company }: HeaderProps) {
+// ─── Header ────────────────────────────────────────────────────────────────────
+
+interface HeaderProps { company: Company; templateTitle: string; }
+export function PDFHeader({ company, templateTitle }: HeaderProps) {
   return (
     <View style={pdfStyles.header}>
       <View style={[pdfStyles.headerLeft, { flexDirection: 'row', alignItems: 'flex-start' }]}>
@@ -76,11 +81,13 @@ export function PDFHeader({ company }: HeaderProps) {
         </View>
       </View>
       <View style={pdfStyles.headerRight}>
-        <Text style={pdfStyles.jobsheetTitle}>JOBSHEET</Text>
+        <Text style={pdfStyles.docTitle}>{templateTitle}</Text>
       </View>
     </View>
   );
 }
+
+// ─── Info bar ──────────────────────────────────────────────────────────────────
 
 interface InfoBarProps { job: Job; site: Site; customer: Customer; engineer: Profile; }
 export function PDFJobInfoBar({ job, site, customer, engineer }: InfoBarProps) {
@@ -101,23 +108,65 @@ export function PDFJobInfoBar({ job, site, customer, engineer }: InfoBarProps) {
         </View>
         <View style={pdfStyles.infoBarItem}>
           <Text style={pdfStyles.infoBarLabel}>Date</Text>
-          <Text style={pdfStyles.infoBarValue}>{new Date(job.scheduled_date + 'T00:00:00').toLocaleDateString('en-GB')}</Text>
+          <Text style={pdfStyles.infoBarValue}>
+            {new Date(job.scheduled_date + 'T00:00:00').toLocaleDateString('en-GB')}
+            {job.scheduled_time ? `  ${job.scheduled_time}` : ''}
+          </Text>
         </View>
         <View style={pdfStyles.infoBarItem}>
           <Text style={pdfStyles.infoBarLabel}>Job type</Text>
-          <Text style={pdfStyles.infoBarValue}>{job.type.charAt(0).toUpperCase() + job.type.slice(1)}</Text>
+          <Text style={pdfStyles.infoBarValue}>{job.type.replace(/_/g, ' ')}</Text>
         </View>
         <View style={pdfStyles.infoBarItem}>
           <Text style={pdfStyles.infoBarLabel}>Status</Text>
-          <Text style={pdfStyles.infoBarValue}>{job.status.replace('_', ' ').toUpperCase()}</Text>
+          <Text style={pdfStyles.infoBarValue}>{job.status.replace(/_/g, ' ').toUpperCase()}</Text>
         </View>
       </View>
     </View>
   );
 }
 
+// ─── Template section ──────────────────────────────────────────────────────────
+
 interface SectionProps { section: SectionDef; answers: Record<string, unknown>; }
 export function PDFSection({ section, answers }: SectionProps) {
+  // Repeatable section: render each instance as a sub-table
+  if (section.repeatable) {
+    const instances = (answers[section.id + '_instances'] ?? []) as Record<string, unknown>[];
+    if (instances.length === 0) return null;
+    return (
+      <View>
+        <View style={pdfStyles.sectionHeader}>
+          <Text style={pdfStyles.sectionTitle}>{section.title}</Text>
+        </View>
+        <View style={pdfStyles.sectionBody}>
+          {instances.map((instance, idx) => (
+            <View key={idx}>
+              {idx > 0 && <View style={{ height: 1, backgroundColor: colors.border }} />}
+              <View style={{ padding: '2 8', backgroundColor: '#f9fafb' }}>
+                <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: colors.textGray }}>
+                  {section.repeat_label ?? 'Item'} {idx + 1}
+                </Text>
+              </View>
+              {section.fields.map(field => {
+                if (field.type === 'photo' || field.type === 'signature') return null;
+                const value = instance[field.id];
+                return (
+                  <View key={field.id} style={pdfStyles.fieldRow}>
+                    <Text style={pdfStyles.fieldLabel}>{field.label}</Text>
+                    <Text style={pdfStyles.fieldValue}>
+                      {value === null || value === undefined ? '—' : String(value)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View>
       <View style={pdfStyles.sectionHeader}>
@@ -125,7 +174,6 @@ export function PDFSection({ section, answers }: SectionProps) {
       </View>
       <View style={pdfStyles.sectionBody}>
         {section.fields.map(field => {
-          // Skip photo/signature fields — rendered separately
           if (field.type === 'photo' || field.type === 'signature') return null;
           const value = answers[field.id];
           if (value === null || value === undefined) {
@@ -177,6 +225,8 @@ export function PDFSection({ section, answers }: SectionProps) {
   );
 }
 
+// ─── Remedials table ───────────────────────────────────────────────────────────
+
 interface RemedialsProps { remedials: Remedial[]; }
 export function PDFRemedialTable({ remedials }: RemedialsProps) {
   if (remedials.length === 0) return null;
@@ -205,6 +255,8 @@ export function PDFRemedialTable({ remedials }: RemedialsProps) {
   );
 }
 
+// ─── Photos ────────────────────────────────────────────────────────────────────
+
 interface PhotosProps { photos: Photo[]; }
 export function PDFPhotosSection({ photos }: PhotosProps) {
   const withPaths = photos.filter(p => p.storage_path);
@@ -228,31 +280,48 @@ export function PDFPhotosSection({ photos }: PhotosProps) {
   );
 }
 
+// ─── Sign-off boxes ────────────────────────────────────────────────────────────
+
 interface SignaturesProps {
   engineerSignatureUrl: string | null;
   customerSignatureUrl: string | null;
   engineerName: string;
+  companyName: string;
   submittedAt: string | null;
 }
-export function PDFSignatureBoxes({ engineerSignatureUrl, customerSignatureUrl, engineerName, submittedAt }: SignaturesProps) {
+export function PDFSignatureBoxes({
+  engineerSignatureUrl,
+  customerSignatureUrl,
+  engineerName,
+  companyName,
+  submittedAt,
+}: SignaturesProps) {
   return (
     <View style={pdfStyles.signatureSection}>
       <View style={pdfStyles.signatureBox}>
-        <Text style={pdfStyles.signatureLabel}>Engineer Signature</Text>
+        <Text style={pdfStyles.signatureLabel}>Engineer ({companyName})</Text>
         {engineerSignatureUrl ? (
           <Image style={pdfStyles.signatureImage} src={engineerSignatureUrl} />
         ) : (
-          <View style={pdfStyles.signaturePlaceholder}><Text style={{ fontSize: 7, color: colors.textGray }}>Not signed</Text></View>
+          <View style={pdfStyles.signaturePlaceholder}>
+            <Text style={{ fontSize: 7, color: colors.textGray }}>Not signed</Text>
+          </View>
         )}
         <Text style={{ fontSize: 7, color: colors.textGray, marginTop: 4 }}>{engineerName}</Text>
-        {submittedAt && <Text style={{ fontSize: 7, color: colors.textGray }}>{new Date(submittedAt).toLocaleString('en-GB')}</Text>}
+        {submittedAt && (
+          <Text style={{ fontSize: 7, color: colors.textGray }}>
+            {new Date(submittedAt).toLocaleString('en-GB')}
+          </Text>
+        )}
       </View>
       <View style={pdfStyles.signatureBox}>
-        <Text style={pdfStyles.signatureLabel}>Customer Signature</Text>
+        <Text style={pdfStyles.signatureLabel}>Responsible Person (Premises Management)</Text>
         {customerSignatureUrl ? (
           <Image style={pdfStyles.signatureImage} src={customerSignatureUrl} />
         ) : (
-          <View style={pdfStyles.signaturePlaceholder}><Text style={{ fontSize: 7, color: colors.textGray }}>Not signed</Text></View>
+          <View style={pdfStyles.signaturePlaceholder}>
+            <Text style={{ fontSize: 7, color: colors.textGray }}>Not signed</Text>
+          </View>
         )}
       </View>
     </View>

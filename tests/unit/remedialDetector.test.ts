@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectRemedials } from '../../src/form-engine/remedialDetector';
 import type { TemplateDef } from '../../src/templates/types';
+import type { AnswersMap } from '../../src/types';
 
 const JS_ID = 'js-1';
 const SITE_ID = 'site-1';
@@ -10,7 +11,7 @@ const minimalTemplate: TemplateDef = {
   id: 'reactive_callout',
   name: 'Reactive Callout',
   system_type: 'fire_alarm',
-  job_type: 'reactive',
+  job_type: 'reactive_callout',
   version: 1,
   sections: [],
 };
@@ -36,7 +37,7 @@ describe('detectRemedials', () => {
       }],
     };
 
-    const answers = {
+    const answers: AnswersMap = {
       battery_test: { result: 'fail', note: 'Battery dead' },
     };
 
@@ -179,7 +180,7 @@ describe('detectRemedials', () => {
       }],
     };
 
-    const answers = {
+    const answers: AnswersMap = {
       devices_instances: [
         { device_test: { result: 'pass', note: '' } },
         { device_test: { result: 'fail', note: 'Faulty' } },

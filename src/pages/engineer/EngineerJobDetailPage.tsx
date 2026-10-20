@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { db } from '../../lib/db';
-import { enqueueSync } from '../../offline/SyncQueue';
+import { enqueueJobStatus } from '../../offline/SyncQueue';
 import { useAuth } from '../../auth/AuthProvider';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { Spinner } from '../../components/ui/Spinner';
@@ -61,7 +61,7 @@ export function EngineerJobDetailPage() {
     const updated: Job = { ...job, status: 'on_site', on_site_at: new Date().toISOString() };
     await db.jobs.put(updated);
     setJob(updated);
-    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: updated as unknown as Record<string, unknown> });
+    await enqueueJobStatus(job.id, 'on_site');
     navigate(`/jobs/${job.id}/fill`);
   }
 

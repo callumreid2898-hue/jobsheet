@@ -11,6 +11,7 @@ import { EngineerJobDetailPage } from '../pages/engineer/EngineerJobDetailPage';
 import { FillJobsheetPage } from '../pages/engineer/FillJobsheetPage';
 import { JobSubmittedPage } from '../pages/engineer/JobSubmittedPage';
 import { TodayPage } from '../pages/engineer/TodayPage';
+import { SyncIssuesPage } from '../pages/engineer/SyncIssuesPage';
 
 // Manager pages — existing
 import { ManagerJobsListPage } from '../pages/manager/ManagerJobsListPage';
@@ -74,6 +75,7 @@ export function AppRoutes() {
       <Route path="/jobs/:jobId" element={<E><EngineerJobDetailPage /></E>} />
       <Route path="/jobs/:jobId/fill" element={<E><FillJobsheetPage /></E>} />
       <Route path="/jobs/:jobId/submitted" element={<E><JobSubmittedPage /></E>} />
+      <Route path="/sync" element={<E><SyncIssuesPage /></E>} />
 
       {/* ── Manager root redirect ───────────────────────────────── */}
       <Route path="/manager" element={<Navigate to="/manager/dashboard" replace />} />

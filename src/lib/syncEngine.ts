@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { db } from './db';
+import type { SyncQueueItem } from '../types';
 
 type SyncListener = (state: SyncState) => void;
 
@@ -30,86 +31,178 @@ function setState(patch: Partial<SyncState>) {
   listeners.forEach(l => l(state));
 }
 
-async function updateQueueLength() {
-  const count = await db.sync_queue.count();
-  const failed = await db.sync_queue.where('attempts').aboveOrEqual(5).count();
-  setState({ queueLength: count, failedCount: failed });
+// ─── Identity ────────────────────────────────────────────────────────────────
+// Set by AuthProvider. Queue items are stamped with the user and only flushed
+// under that user's session.
+
+let identity: { userId: string | null; companyId: string | null } = { userId: null, companyId: null };
+
+export function getSyncIdentity() {
+  return identity;
 }
 
+export function setSyncIdentity(userId: string | null, companyId: string | null) {
+  if (userId !== identity.userId) {
+    identity = { userId, companyId };
+    if (userId) scheduleFlush(0);
+    else updateQueueLength().catch(() => {/* silent */});
+  } else if (companyId) {
+    identity = { userId, companyId };
+  }
+}
+
+/** Items the current user can see on the Sync screen: their own, plus pre-v5 items with no owner. */
+export async function getVisibleQueue(): Promise<SyncQueueItem[]> {
+  const items = await db.sync_queue.orderBy('seq').toArray();
+  return items.filter(i => i.user_id === null || i.user_id === identity.userId);
+}
+
+async function updateQueueLength() {
+  const items = identity.userId ? await getVisibleQueue() : [];
+  setState({
+    queueLength: items.length,
+    failedCount: items.filter(i => i.status === 'failed').length,
+  });
+}
+
+// ─── Error classification ────────────────────────────────────────────────────
+
+class SyncError extends Error {
+  readonly status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/** Network failures (status 0/undefined), 5xx, auth expiry, timeouts and rate limits are retried. */
+export function isTransient(status: number | undefined): boolean {
+  return !status || status >= 500 || status === 401 || status === 408 || status === 429;
+}
+
+const BASE_DELAY_MS = 5_000;
+const MAX_DELAY_MS = 15 * 60_000;
+
+export function backoffDelay(attempts: number): number {
+  return Math.min(BASE_DELAY_MS * 2 ** Math.max(attempts - 1, 0), MAX_DELAY_MS);
+}
+
+function check(res: { error: { message: string } | null; status?: number }) {
+  if (res.error) throw new SyncError(res.error.message, res.status);
+}
+
+async function send(item: SyncQueueItem) {
+  const p = item.payload;
+
+  switch (item.operation) {
+    case 'upsert':
+      check(await supabase.from(item.table).upsert(p));
+      break;
+
+    case 'insert':
+      check(await supabase.from(item.table).upsert(p, { onConflict: 'id', ignoreDuplicates: true }));
+      break;
+
+    case 'update': {
+      const { id, ...patch } = p;
+      check(await supabase.from(item.table).update(patch).eq('id', id as string));
+      break;
+    }
+
+    case 'delete':
+      check(await supabase.from(item.table).delete().eq('id', p['id'] as string));
+      break;
+
+    case 'rpc':
+      check(await supabase.rpc(p['fn'] as string, p['args'] as Record<string, unknown>));
+      break;
+
+    case 'storage_upload': {
+      const photoId = p['blob_key'] as string;
+      const storagePath = p['storage_path'] as string;
+      const bucket = p['bucket'] as string;
+
+      const photo = await db.photos.get(photoId);
+      if (!photo?.blob) throw new SyncError('Local blob not found', 404);
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(storagePath, photo.blob, { upsert: true });
+      if (uploadError) {
+        throw new SyncError(uploadError.message, (uploadError as { status?: number }).status);
+      }
+
+      // Update photos row with storage_path, clear blob
+      await db.photos.update(photoId, { storage_path: storagePath, blob: undefined });
+      await supabase
+        .from('photos')
+        .update({ storage_path: storagePath })
+        .eq('id', photoId);
+      break;
+    }
+  }
+}
+
+// ─── Flush ───────────────────────────────────────────────────────────────────
+
+let rerunRequested = false;
+
 export async function flushQueue(): Promise<{ synced: number; failed: number }> {
-  if (state.isSyncing) return { synced: 0, failed: 0 };
-  if (!navigator.onLine) {
+  if (state.isSyncing) {
+    rerunRequested = true;
+    return { synced: 0, failed: 0 };
+  }
+  const userId = identity.userId;
+  if (!navigator.onLine || !userId) {
     await updateQueueLength();
     return { synced: 0, failed: 0 };
   }
 
   setState({ isSyncing: true });
+  rerunRequested = false;
   let synced = 0;
   let failed = 0;
 
   try {
-    // Process items ordered by created_at
-    const items = await db.sync_queue.orderBy('created_at').toArray();
+    const items = (await db.sync_queue.orderBy('seq').toArray()).filter(i => i.user_id === userId);
+    // Entities with an unsent earlier item. Later writes to them, and their children, wait.
+    const blocked = new Set<string>();
+    const now = Date.now();
 
     for (const item of items) {
-      if (item.attempts >= 5) {
-        failed++;
+      const isBlocked = blocked.has(item.entity_key) || item.depends_on.some(k => blocked.has(k));
+      const isWaiting = item.next_attempt_at !== null && Date.parse(item.next_attempt_at) > now;
+
+      if (item.status === 'failed') failed++;
+      if (item.status === 'failed' || isBlocked || isWaiting) {
+        blocked.add(item.entity_key);
         continue;
       }
 
       try {
-        if (item.operation === 'upsert') {
-          const { error } = await supabase
-            .from(item.table)
-            .upsert(item.payload as Record<string, unknown>);
-          if (error) throw new Error(error.message);
-
-        } else if (item.operation === 'delete') {
-          const { error } = await supabase
-            .from(item.table)
-            .delete()
-            .eq('id', item.payload['id'] as string);
-          if (error) throw new Error(error.message);
-
-        } else if (item.operation === 'storage_upload') {
-          const photoId = item.payload['blob_key'] as string;
-          const storagePath = item.payload['storage_path'] as string;
-          const bucket = item.payload['bucket'] as string;
-
-          const photo = await db.photos.get(photoId);
-          if (!photo?.blob) throw new Error('Local blob not found');
-
-          const { error: uploadError } = await supabase.storage
-            .from(bucket)
-            .upload(storagePath, photo.blob, { upsert: true });
-          if (uploadError) throw new Error(uploadError.message);
-
-          // Update photos row with storage_path, clear blob
-          await db.photos.update(photoId, { storage_path: storagePath, blob: undefined });
-          await supabase
-            .from('photos')
-            .update({ storage_path: storagePath })
-            .eq('id', photoId);
-        }
+        await send(item);
 
         // Success — remove from queue
         await db.sync_queue.delete(item.id);
         synced++;
 
         // After a jobsheet is synced and submitted, trigger PDF generation
-        if (item.table === 'jobsheets' && item.operation === 'upsert') {
-          const payload = item.payload as Record<string, unknown>;
-          if (payload['submitted_at']) {
-            triggerPDFGeneration(payload['id'] as string).catch(() => {/* silent */});
-          }
+        if (item.table === 'jobsheets' && item.payload['submitted_at']) {
+          triggerPDFGeneration(item.payload['id'] as string).catch(() => {/* silent */});
         }
 
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        const status = err instanceof SyncError ? err.status : undefined;
+        const attempts = item.attempts + 1;
+        const transient = isTransient(status);
         await db.sync_queue.update(item.id, {
-          attempts: item.attempts + 1,
+          attempts,
           last_error: message,
+          status: transient ? 'pending' : 'failed',
+          next_attempt_at: transient ? new Date(Date.now() + backoffDelay(attempts)).toISOString() : null,
         });
+        blocked.add(item.entity_key);
         failed++;
       }
     }
@@ -123,7 +216,36 @@ export async function flushQueue(): Promise<{ synced: number; failed: number }> 
   }
 
   await updateQueueLength();
+  if (rerunRequested) scheduleFlush();
   return { synced, failed };
+}
+
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Debounced flush, used after every enqueue. */
+export function scheduleFlush(delayMs = 500) {
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
+    flushQueue().catch(() => {/* silent */});
+  }, delayMs);
+}
+
+/** Sync screen: send an item again now, claiming pre-v5 items for the current user. */
+export async function retryItem(id: string) {
+  const item = await db.sync_queue.get(id);
+  if (!item) return;
+  await db.sync_queue.update(id, {
+    status: 'pending',
+    next_attempt_at: null,
+    user_id: item.user_id ?? identity.userId,
+  });
+  await flushQueue();
+}
+
+export async function discardItem(id: string) {
+  await db.sync_queue.delete(id);
+  await updateQueueLength();
 }
 
 async function triggerPDFGeneration(jobsheetId: string) {
@@ -166,21 +288,23 @@ export function startSyncEngine() {
   if (started) return;
   started = true;
 
-  // Initial sync on startup if online
-  if (navigator.onLine) {
-    flushQueue().catch(() => {/* silent */});
-  }
+  // Older builds cached Supabase API responses in Workbox; Dexie is the offline store now.
+  if (typeof caches !== 'undefined') caches.delete('supabase-cache').catch(() => {/* silent */});
+
+  // The first flush runs when AuthProvider sets the identity.
 
   // Sync whenever connection is restored
   window.addEventListener('online', () => {
     flushQueue().catch(() => {/* silent */});
   });
 
-  // Update queue length counter whenever Dexie changes
-  // (lightweight polling every 5s for queue display)
-  setInterval(() => {
-    updateQueueLength().catch(() => {/* silent */});
-  }, 5000);
+  // ...and when the app comes back to the foreground
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') flushQueue().catch(() => {/* silent */});
+  });
 
-  updateQueueLength().catch(() => {/* silent */});
+  // Retry backed-off items and keep the queue counter fresh
+  setInterval(() => {
+    flushQueue().catch(() => {/* silent */});
+  }, 30_000);
 }

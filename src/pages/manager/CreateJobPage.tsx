@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { db } from '../../lib/db';
 import { useAuth } from '../../auth/AuthProvider';
@@ -10,31 +10,43 @@ import { useProfiles } from '../../hooks/useProfiles';
 import type { Job, TemplateId, JobType } from '../../types';
 
 const templateOptions: { value: TemplateId; label: string }[] = [
-  { value: 'fire_alarm_service', label: 'Fire Alarm Service' },
-  { value: 'reactive_callout', label: 'Reactive Callout' },
-  { value: 'emergency_lighting_test', label: 'Emergency Lighting Test' },
-  { value: 'cctv_maintenance', label: 'CCTV Maintenance' },
+  { value: 'fire_alarm_service',     label: 'Fire Alarm Service' },
+  { value: 'fire_alarm_inspection',  label: 'Fire Alarm Inspection' },
+  { value: 'corrective_maintenance', label: 'Corrective Maintenance' },
+  { value: 'reactive_callout',       label: 'Reactive Callout' },
+  { value: 'emergency_lighting_test',label: 'Emergency Lighting Test' },
+  { value: 'cctv_maintenance',       label: 'CCTV Maintenance' },
+  { value: 'cctv_handover',          label: 'CCTV Handover' },
 ];
 
 export function CreateJobPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { profile } = useAuth();
   const { customers } = useCustomers();
   const { sites } = useSites();
   const { systems } = useSystems();
   const { profiles } = useProfiles({ role: 'engineer' });
   const [saving, setSaving] = useState(false);
+
   const [form, setForm] = useState({
-    customer_id: '', site_id: '', system_id: '',
+    customer_id: '',
+    site_id: '',
+    system_id: '',
     type: 'ppm_service' as JobType,
     template_id: 'fire_alarm_service' as TemplateId,
-    assigned_engineer_id: '',
-    scheduled_date: new Date().toISOString().split('T')[0],
+    assigned_engineer_id: searchParams.get('engineer') ?? '',
+    scheduled_date: searchParams.get('date') ?? new Date().toISOString().split('T')[0],
+    scheduled_time: searchParams.get('time') ?? '',
     notes: '',
   });
 
-  const filteredSites = form.customer_id ? sites.filter(s => s.customer_id === form.customer_id) : sites;
-  const filteredSystems = form.site_id ? systems.filter(s => s.site_id === form.site_id) : systems;
+  const filteredSites = form.customer_id
+    ? sites.filter(s => s.customer_id === form.customer_id)
+    : sites;
+  const filteredSystems = form.site_id
+    ? systems.filter(s => s.site_id === form.site_id)
+    : systems;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,6 +61,7 @@ export function CreateJobPage() {
       template_id: form.template_id,
       assigned_engineer_id: form.assigned_engineer_id || null,
       scheduled_date: form.scheduled_date,
+      scheduled_time: form.scheduled_time || null,
       status: form.assigned_engineer_id ? 'scheduled' : 'unassigned',
       notes: form.notes || null,
       travelling_at: null,
@@ -64,7 +77,7 @@ export function CreateJobPage() {
 
   return (
     <div className="px-4 pt-6 pb-6">
-      <button onClick={() => navigate('/manager/jobs')} className="text-blue-600 text-sm mb-4">‹ Back</button>
+      <button onClick={() => navigate(-1)} className="text-blue-600 text-sm mb-4">‹ Back</button>
       <h1 className="text-xl font-bold text-gray-900 mb-4">New Job</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -104,9 +117,15 @@ export function CreateJobPage() {
             <option value="survey">Survey</option>
           </select>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled date <span className="text-red-500">*</span></label>
-          <input required type="date" value={form.scheduled_date} onChange={e => setForm(f => ({...f, scheduled_date: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Date <span className="text-red-500">*</span></label>
+            <input required type="date" value={form.scheduled_date} onChange={e => setForm(f => ({...f, scheduled_date: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          </div>
+          <div className="w-32">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+            <input type="time" value={form.scheduled_time} onChange={e => setForm(f => ({...f, scheduled_time: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Assign engineer</label>

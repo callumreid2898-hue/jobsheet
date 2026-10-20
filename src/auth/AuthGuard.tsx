@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function AuthGuard({ children, requiredRole }: Props) {
-  const { session, profile, isLoading } = useAuth();
+  const { session, profile, isLoading, previewRole } = useAuth();
 
   if (isLoading) {
     return (
@@ -21,9 +21,12 @@ export function AuthGuard({ children, requiredRole }: Props) {
 
   if (!session) return <Navigate to="/login" replace />;
 
-  if (requiredRole && profile?.role !== requiredRole) {
-    if (profile?.role === 'engineer') return <Navigate to="/jobs" replace />;
-    if (profile?.role === 'manager') return <Navigate to="/manager/jobs" replace />;
+  // previewRole overrides real role for route access checks
+  const effectiveRole = previewRole ?? profile?.role;
+
+  if (requiredRole && effectiveRole !== requiredRole) {
+    if (effectiveRole === 'engineer') return <Navigate to="/jobs" replace />;
+    if (effectiveRole === 'manager') return <Navigate to="/manager/jobs" replace />;
   }
 
   return <>{children}</>;

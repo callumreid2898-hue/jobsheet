@@ -13,7 +13,8 @@ export function LoginPage() {
     setError('');
     const { error: err } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin + '/auth/callback' },
+      // Invite-only: never create an account from the login form.
+      options: { emailRedirectTo: window.location.origin + '/auth/callback', shouldCreateUser: false },
     });
     setLoading(false);
     if (err) { setError(err.message); return; }

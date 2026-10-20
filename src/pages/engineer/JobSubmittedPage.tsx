@@ -1,14 +1,24 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../../lib/db';
 import { useSync } from '../../offline/useSync';
-import { useOnline } from '../../lib/useOnline';
+import { syncKey } from '../../offline/SyncQueue';
 
 export function JobSubmittedPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { queueLength, isSyncing } = useSync();
-  const isOnline = useOnline();
+  const { isSyncing } = useSync();
 
-  const isQueued = queueLength > 0 || !isOnline;
+  // Only this job's writes (its jobsheet, status change and remedials) count
+  const queueLength = useLiveQuery(async () => {
+    if (!jobId) return 0;
+    const js = await db.jobsheets.where('job_id').equals(jobId).first();
+    const keys = [syncKey('jobs', jobId), ...(js ? [syncKey('jobsheets', js.id)] : [])];
+    const items = await db.sync_queue.toArray();
+    return items.filter(i => keys.includes(i.entity_key) || i.depends_on.some(k => keys.includes(k))).length;
+  }, [jobId]) ?? 0;
+
+  const isQueued = queueLength > 0;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">

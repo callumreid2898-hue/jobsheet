@@ -76,7 +76,38 @@ export class AppDB extends Dexie {
       invoices:      'id, company_id, customer_id, site_id, job_id, quote_id, status, due_date',
       invoice_lines: 'id, invoice_id, company_id',
     });
+
+    this.version(4).stores({
+      jobs: 'id, company_id, site_id, assigned_engineer_id, scheduled_date, scheduled_time, status, template_id, type',
+    });
+
+    // Older items can't be attributed to a user, so they wait on the Sync screen for a retry or discard.
+    this.version(5).stores({
+      sync_queue: 'id, table, operation, created_at, attempts, seq, status, user_id, entity_key',
+    }).upgrade(async tx => {
+      const items = await tx.table('sync_queue').orderBy('created_at').toArray();
+      let seq = 0;
+      for (const item of items) {
+        const id = item.payload?.id ?? item.payload?.blob_key ?? item.id;
+        await tx.table('sync_queue').update(item.id, {
+          seq: ++seq,
+          user_id: null,
+          company_id: item.payload?.company_id ?? null,
+          status: item.attempts >= 5 ? 'failed' : 'pending',
+          next_attempt_at: null,
+          entity_key: `${item.table}:${id}`,
+          depends_on: [],
+        });
+      }
+    });
   }
 }
 
 export const db = new AppDB();
+
+/** Wipes every local table and the legacy Workbox API cache (used on sign-out). */
+export async function clearLocalData(): Promise<void> {
+  await db.delete({ disableAutoOpen: false });
+  await db.open();
+  if (typeof caches !== 'undefined') await caches.delete('supabase-cache').catch(() => false);
+}

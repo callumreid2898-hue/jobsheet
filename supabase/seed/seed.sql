@@ -33,7 +33,7 @@ insert into auth.users (
   id, instance_id, aud, role, email,
   encrypted_password, email_confirmed_at,
   raw_user_meta_data, created_at, updated_at,
-  confirmation_token, recovery_token, email_change_token_new,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
   raw_app_meta_data
 )
 values
@@ -45,7 +45,7 @@ values
     crypt('Password1!', gen_salt('bf')),
     now(),
     jsonb_build_object('company_id','11111111-1111-1111-1111-111111111111','role','manager','full_name','Alice Manager'),
-    now(), now(), '', '', '',
+    now(), now(), '', '', '', '',
     '{"provider":"email","providers":["email"]}'::jsonb
   ),
   (
@@ -56,7 +56,7 @@ values
     crypt('Password1!', gen_salt('bf')),
     now(),
     jsonb_build_object('company_id','11111111-1111-1111-1111-111111111111','role','engineer','full_name','Bob Engineer'),
-    now(), now(), '', '', '',
+    now(), now(), '', '', '', '',
     '{"provider":"email","providers":["email"]}'::jsonb
   ),
   (
@@ -67,7 +67,7 @@ values
     crypt('Password1!', gen_salt('bf')),
     now(),
     jsonb_build_object('company_id','11111111-1111-1111-1111-111111111111','role','engineer','full_name','Carol Engineer'),
-    now(), now(), '', '', '',
+    now(), now(), '', '', '', '',
     '{"provider":"email","providers":["email"]}'::jsonb
   )
 on conflict (id) do nothing;
@@ -134,7 +134,7 @@ insert into auth.users (
   id, instance_id, aud, role, email,
   encrypted_password, email_confirmed_at,
   raw_user_meta_data, created_at, updated_at,
-  confirmation_token, recovery_token, email_change_token_new,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
   raw_app_meta_data
 )
 values (
@@ -145,7 +145,7 @@ values (
   crypt('Password1!', gen_salt('bf')),
   now(),
   jsonb_build_object('company_id','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','role','manager','full_name','Other Manager'),
-  now(), now(), '', '', '',
+  now(), now(), '', '', '', '',
   '{"provider":"email","providers":["email"]}'::jsonb
 )
 on conflict (id) do nothing;
@@ -193,7 +193,7 @@ values
     '11111111-1111-1111-1111-111111111111',
     'a1000000-0000-0000-0000-000000000001',
     'b1000000-0000-0000-0000-000000000001',
-    'service', 'fire_alarm_service',
+    'ppm_service', 'fire_alarm_service',
     '55555555-5555-5555-5555-555555555555',
     current_date, 'scheduled',
     'Annual service. Zone 1-4 this visit. Please check battery voltages carefully - reported low on last visit.'
@@ -203,7 +203,7 @@ values
     '11111111-1111-1111-1111-111111111111',
     'a1000000-0000-0000-0000-000000000003',
     'b1000000-0000-0000-0000-000000000003',
-    'reactive', 'reactive_callout',
+    'reactive_callout', 'reactive_callout',
     '55555555-5555-5555-5555-555555555555',
     current_date, 'scheduled',
     'Customer reports panel showing zone 3 fault. Investigate and rectify.'
@@ -213,7 +213,7 @@ values
     '11111111-1111-1111-1111-111111111111',
     'a1000000-0000-0000-0000-000000000003',
     'b1000000-0000-0000-0000-000000000004',
-    'service', 'emergency_lighting_test',
+    'ppm_service', 'emergency_lighting_test',
     '77777777-7777-7777-7777-777777777777',
     current_date, 'scheduled',
     'Annual duration test. All fittings must be tested.'
@@ -223,7 +223,7 @@ values
     '11111111-1111-1111-1111-111111111111',
     'a1000000-0000-0000-0000-000000000002',
     'b1000000-0000-0000-0000-000000000002',
-    'service', 'cctv_maintenance',
+    'ppm_service', 'cctv_maintenance',
     '77777777-7777-7777-7777-777777777777',
     current_date, 'scheduled',
     'Routine CCTV maintenance. Check HDD retention - should be 31 days minimum.'
@@ -233,7 +233,7 @@ values
     '11111111-1111-1111-1111-111111111111',
     'a1000000-0000-0000-0000-000000000005',
     'b1000000-0000-0000-0000-000000000006',
-    'service', 'emergency_lighting_test',
+    'ppm_service', 'emergency_lighting_test',
     '55555555-5555-5555-5555-555555555555',
     current_date, 'scheduled',
     'Monthly flick test for back office emergency lighting.'

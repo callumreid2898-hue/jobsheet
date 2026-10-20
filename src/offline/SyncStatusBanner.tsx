@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useOnline } from '../lib/useOnline';
 import { useSync } from './useSync';
 
@@ -6,8 +7,6 @@ export function SyncStatusBanner() {
   const isOnline = useOnline();
   const { queueLength, isSyncing, failedCount, lastSyncedAt } = useSync();
   const [showSuccess, setShowSuccess] = useState(false);
-
-  const prevQueueRef = { current: queueLength };
 
   useEffect(() => {
     if (lastSyncedAt && queueLength === 0 && !isSyncing) {
@@ -21,7 +20,6 @@ export function SyncStatusBanner() {
   if (isOnline && queueLength === 0 && failedCount === 0 && !isSyncing && !showSuccess) {
     return null;
   }
-  void prevQueueRef; // suppress lint warning
 
   let bgColor = 'bg-gray-600';
   let message = '';
@@ -33,7 +31,7 @@ export function SyncStatusBanner() {
       : 'Offline';
   } else if (failedCount > 0) {
     bgColor = 'bg-red-500';
-    message = `Sync failed — ${failedCount} item${failedCount !== 1 ? 's' : ''} couldn't sync`;
+    message = `Sync failed — ${failedCount} item${failedCount !== 1 ? 's' : ''} couldn't sync. Tap to review`;
   } else if (isSyncing) {
     bgColor = 'bg-blue-600';
     message = 'Syncing…';
@@ -48,12 +46,13 @@ export function SyncStatusBanner() {
   if (!message) return null;
 
   return (
-    <div
-      className={`${bgColor} text-white text-xs font-medium text-center py-1.5 px-4 transition-all duration-300`}
+    <Link
+      to="/sync"
+      className={`block ${bgColor} text-white text-xs font-medium text-center py-1.5 px-4 transition-all duration-300`}
       role="status"
       aria-live="polite"
     >
       {message}
-    </div>
+    </Link>
   );
 }

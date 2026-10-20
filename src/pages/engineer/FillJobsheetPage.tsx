@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/db';
 import { supabase } from '../../lib/supabaseClient';
-import { enqueueSync } from '../../offline/SyncQueue';
+import { enqueueSync, enqueueJobStatus, syncKey } from '../../offline/SyncQueue';
 import { useAuth } from '../../auth/AuthProvider';
 import { Spinner } from '../../components/ui/Spinner';
 import { FormEngine } from '../../form-engine/FormEngine';
@@ -59,7 +59,7 @@ export function FillJobsheetPage() {
             updated_at: new Date().toISOString(),
           };
           await db.jobsheets.put(js).catch(() => {});
-          await enqueueSync({ table: 'jobsheets', operation: 'upsert', payload: js as unknown as Record<string, unknown> });
+          await enqueueSync({ table: 'jobsheets', operation: 'insert', payload: js as unknown as Record<string, unknown> });
         }
       }
       if (!cancelled) setJobsheet(js);
@@ -85,21 +85,8 @@ export function FillJobsheetPage() {
 
     // Detect remedials
     const remedialCreates = detectRemedials(template!, answers, jobsheet.id, site.id, profile.company_id);
+    const jobsheetKey = syncKey('jobsheets', jobsheet.id);
 
-    // Save each remedial to Dexie + sync queue
-    for (const rc of remedialCreates) {
-      const remedial = {
-        ...rc,
-        id: crypto.randomUUID(),
-        status: 'open' as const,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      await db.remedials.put(remedial).catch(() => {});
-      await enqueueSync({ table: 'remedials', operation: 'upsert', payload: remedial as unknown as Record<string, unknown> });
-    }
-
-    // Update jobsheet
     const updatedJs: Jobsheet = {
       ...jobsheet,
       answers,
@@ -107,26 +94,33 @@ export function FillJobsheetPage() {
       submitted_at: submittedAt,
       updated_at: new Date().toISOString(),
     };
-    await db.jobsheets.put(updatedJs).catch(() => {});
-    await enqueueSync({ table: 'jobsheets', operation: 'upsert', payload: updatedJs as unknown as Record<string, unknown> });
-
-    // Update job status
     const updatedJob: Job = { ...job, status: 'awaiting_review' };
-    await db.jobs.put(updatedJob).catch(() => {});
-    await enqueueSync({ table: 'jobs', operation: 'upsert', payload: updatedJob as unknown as Record<string, unknown> });
 
-    // Audit log
-    await enqueueSync({
-      table: 'audit_log', operation: 'upsert',
-      payload: {
-        id: crypto.randomUUID(),
-        company_id: profile.company_id,
-        user_id: profile.user_id,
-        action: 'jobsheet_submitted',
-        entity_type: 'jobsheets',
-        entity_id: jobsheet.id,
-        created_at: new Date().toISOString(),
+    // One transaction, so a crash can't leave half a submission queued.
+    // The server logs the submission to audit_log itself (trigger on jobsheets).
+    await db.transaction('rw', [db.remedials, db.jobsheets, db.jobs, db.sync_queue], async () => {
+      await db.jobsheets.put(updatedJs);
+      await enqueueSync({ table: 'jobsheets', operation: 'upsert', payload: updatedJs as unknown as Record<string, unknown> });
+
+      // Remedials and the status change wait for the jobsheet to reach the server
+      for (const rc of remedialCreates) {
+        const remedial = {
+          ...rc,
+          id: crypto.randomUUID(),
+          status: 'open' as const,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        await db.remedials.put(remedial);
+        await enqueueSync({
+          table: 'remedials', operation: 'insert',
+          payload: remedial as unknown as Record<string, unknown>,
+          depends_on: [jobsheetKey],
+        });
       }
+
+      await db.jobs.put(updatedJob);
+      await enqueueJobStatus(job.id, 'awaiting_review', [jobsheetKey]);
     });
 
     navigate(`/jobs/${job.id}/submitted`);

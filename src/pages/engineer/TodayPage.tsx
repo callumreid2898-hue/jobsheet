@@ -6,7 +6,7 @@ import { StatusPill } from '../../components/ui/StatusPill';
 import { useAuth } from '../../auth/AuthProvider';
 import { useJobs } from '../../hooks/useJobs';
 import { db } from '../../lib/db';
-import { enqueueSync } from '../../offline/SyncQueue';
+import { enqueueJobStatus } from '../../offline/SyncQueue';
 import type { Job, JobStatus } from '../../types';
 
 const JOB_TYPE_LABELS: Record<string, string> = {
@@ -51,13 +51,8 @@ export function TodayPage() {
     try {
       const now = new Date().toISOString();
       const patch: Partial<Job> = { status, [timestampField]: now };
-      const updated: Job = { ...job, ...patch };
       await db.jobs.update(job.id, patch);
-      enqueueSync({
-        table: 'jobs',
-        operation: 'upsert',
-        payload: updated as unknown as Record<string, unknown>,
-      });
+      await enqueueJobStatus(job.id, status);
       await refetch();
     } finally {
       setUpdatingId(null);

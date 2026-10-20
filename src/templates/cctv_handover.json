@@ -1,0 +1,314 @@
+{
+  "id": "cctv_handover",
+  "name": "CCTV Handover Certificate",
+  "system_type": "cctv",
+  "job_type": "install",
+  "version": 1,
+  "sections": [
+    {
+      "id": "site_details",
+      "title": "Site Details",
+      "fields": [
+        { "id": "site_name", "type": "text", "label": "Site Name" },
+        { "id": "contract_no", "type": "text", "label": "Contract No" },
+        { "id": "date", "type": "text", "label": "Date" },
+        { "id": "commissioning_engineer", "type": "text", "label": "Commissioning Engineer" }
+      ]
+    },
+    {
+      "id": "engineers_declaration",
+      "title": "Engineers Declaration",
+      "fields": [
+        {
+          "id": "dec_01",
+          "type": "yes_no_na",
+          "label": "1. The installation is in accordance with the specification and any changes agreed with the Customer in writing",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_02",
+          "type": "yes_no_na",
+          "label": "2. The system complies with relevant standards eg NCP104 Issue 2, BS 7671, BSEN 50132-7, BS8418",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_03",
+          "type": "yes_no_na",
+          "label": "3. All mains connections have been check for continuity and earthing in compliance with current IEE regulations",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_04",
+          "type": "yes_no_na",
+          "label": "4. The supply fuses to the system are for the correct rating",
+          "required": true
+        },
+        {
+          "id": "dec_05",
+          "type": "yes_no_na",
+          "label": "5. All housing containing mains voltage have warning labels attached"
+        },
+        {
+          "id": "dec_06",
+          "type": "yes_no_na",
+          "label": "6. There is a fully completed record or operation checks as set out in OPS200",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_07",
+          "type": "yes_no_na",
+          "label": "7. The UPS circuit(s) is/are charging correctly"
+        },
+        {
+          "id": "dec_08",
+          "type": "yes_no_na",
+          "label": "8. The UPS will carry system under full load for the specified time with supply switched off"
+        },
+        {
+          "id": "dec_09",
+          "type": "yes_no_na",
+          "label": "9. The batteries are clearly marked with the date of installation"
+        },
+        {
+          "id": "dec_10",
+          "type": "yes_no_na",
+          "label": "10. All video cables are correctly terminated at 75 ohms, including monitor switch settings",
+          "required": true
+        },
+        {
+          "id": "dec_11",
+          "type": "yes_no_na",
+          "label": "11. All cables are labelled appropriately",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_12",
+          "type": "yes_no_na",
+          "label": "12. The camera and lens types are correct for each position and are as specified",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_13",
+          "type": "yes_no_na",
+          "label": "13. The fields of view are correct and clear of obstructions",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_14",
+          "type": "yes_no_na",
+          "label": "14. The operation of auto iris lenses under varying light levels is satisfactory"
+        },
+        {
+          "id": "dec_15",
+          "type": "yes_no_na",
+          "label": "15. Camera mountings are installed as per manufacturers instructions",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_16",
+          "type": "yes_no_na",
+          "label": "16. Pan/tilt warning signs are mounted adjacent to pan/tilt heads"
+        },
+        {
+          "id": "dec_17",
+          "type": "yes_no_na",
+          "label": "17. Pan/tilt stops are correctly set"
+        },
+        {
+          "id": "dec_18",
+          "type": "yes_no_na",
+          "label": "18. Telemetry controls operate correctly on all controlled functions"
+        },
+        {
+          "id": "dec_19",
+          "type": "yes_no_na",
+          "label": "19. Supplementary lighting works and all units are correctly aligned"
+        },
+        {
+          "id": "dec_20",
+          "type": "yes_no_na",
+          "label": "20. Zoom lenses track correctly over full range",
+          "required": true
+        },
+        {
+          "id": "dec_21",
+          "type": "yes_no_na",
+          "label": "21. All screen washer bottles are full",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_22",
+          "type": "yes_no_na",
+          "label": "22. Anti climb barriers are fitted to towers",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_23",
+          "type": "yes_no_na",
+          "label": "23. Has the Frames Per Second been set up correctly as per Customers requirements",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_24",
+          "type": "yes_no_na",
+          "label": "24. Has the DVR time and date been set up correctly with GMT"
+        },
+        {
+          "id": "dec_25",
+          "type": "yes_no_na",
+          "label": "25. A test recording has been made and played back to verify that all cameras decode correctly",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_26",
+          "type": "yes_no_na",
+          "label": "26. Multiplex programming log record is correct and complete, where applicable"
+        },
+        {
+          "id": "dec_27",
+          "type": "yes_no_na",
+          "label": "27. Has the Customer been trained on the use of CDR for storage of images and playback on a PC"
+        },
+        {
+          "id": "dec_28",
+          "type": "yes_no_na",
+          "label": "28. The Customer has been informed of their responsibilities regarding the Data Protection Act",
+          "required": true
+        },
+        {
+          "id": "dec_29",
+          "type": "yes_no_na",
+          "label": "29. The Customer has been supplied with signs regarding Data Protection"
+        },
+        {
+          "id": "dec_30",
+          "type": "yes_no_na",
+          "label": "30. The Customer has been shown how to operate the system and full training is offered",
+          "required": true,
+          "triggers_remedial": true,
+          "remedialOn": "no",
+          "remedial_priority": "urgent"
+        },
+        {
+          "id": "dec_31",
+          "type": "yes_no_na",
+          "label": "31. The Evidence Kit has been issued, where applicable"
+        },
+        {
+          "id": "dec_32",
+          "type": "yes_no_na",
+          "label": "32. As Fitted drawings are complete, showing fields of view"
+        },
+        {
+          "id": "dec_33",
+          "type": "yes_no_na",
+          "label": "33. System documentation is complete as set out in NCP104 section 9.4",
+          "required": true
+        },
+        {
+          "id": "dec_34",
+          "type": "yes_no_na",
+          "label": "34. Service history card is on site and completed",
+          "required": true
+        },
+        {
+          "id": "dec_35",
+          "type": "yes_no_na",
+          "label": "35. The CCTV welcome pack has been completed, issued and requested that it is located near the controls",
+          "required": true
+        },
+        {
+          "id": "dec_36",
+          "type": "yes_no_na",
+          "label": "36. Service telephone label complete with contract number is located appropriately"
+        },
+        {
+          "id": "dec_37",
+          "type": "yes_no_na",
+          "label": "37. Surplus materials and equipment have been cleared from site",
+          "required": true
+        },
+        {
+          "id": "dec_38",
+          "type": "yes_no_na",
+          "label": "38. The Customer premises have been left in a tidy condition",
+          "required": true
+        },
+        {
+          "id": "dec_39",
+          "type": "yes_no_na",
+          "label": "39. I have completed and tested the installation of the CCTV System in accordance with our specification and contract",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "incomplete_work",
+      "title": "Incomplete Work",
+      "fields": [
+        {
+          "id": "incomplete_details",
+          "type": "longtext",
+          "label": "Details of work not completed"
+        },
+        {
+          "id": "incomplete_reasons",
+          "type": "longtext",
+          "label": "Reasons beyond company control"
+        },
+        {
+          "id": "subsequent_visit_required",
+          "type": "yes_no_na",
+          "label": "A subsequent visit is required"
+        }
+      ]
+    },
+    {
+      "id": "sign_off",
+      "title": "Sign-Off",
+      "fields": [
+        { "id": "engineer_name", "type": "text", "label": "Engineer Name" },
+        { "id": "engineer_signature", "type": "signature", "label": "Engineer Signature", "required": true },
+        { "id": "customer_name", "type": "text", "label": "Customer Name" },
+        { "id": "customer_signature", "type": "signature", "label": "Customer Signature" },
+        { "id": "sign_date", "type": "text", "label": "Date" }
+      ]
+    }
+  ]
+}
