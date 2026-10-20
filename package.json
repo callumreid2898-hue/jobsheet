@@ -26,7 +26,8 @@
     "react-qr-code": "^2.2.0",
     "react-router-dom": "^7.18.4",
     "recharts": "^3.10.1",
-    "signature_pad": "^5.1.4"
+    "signature_pad": "^5.1.4",
+    "uuid": "^14.0.3"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

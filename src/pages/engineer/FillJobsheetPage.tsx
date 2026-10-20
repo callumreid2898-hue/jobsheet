@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/db';
 import { supabase } from '../../lib/supabaseClient';
 import { enqueueSync, enqueueJobStatus, syncKey } from '../../offline/SyncQueue';
+import { jobsheetIdFor } from '../../lib/ids';
+import { applyStatus } from '../../lib/jobStatus';
 import { useAuth } from '../../auth/AuthProvider';
 import { Spinner } from '../../components/ui/Spinner';
 import { FormEngine } from '../../form-engine/FormEngine';
@@ -42,9 +44,10 @@ export function FillJobsheetPage() {
           js = data as Jobsheet;
           await db.jobsheets.put(js).catch(() => {});
         } else {
-          // Create new local jobsheet
+          // Create new local jobsheet. The id is derived from the job, so opening the
+          // job offline on two devices (or after clearing data) can't create two.
           js = {
-            id: crypto.randomUUID(),
+            id: jobsheetIdFor(j.id),
             job_id: j.id,
             company_id: j.company_id,
             template_id: j.template_id as TemplateId,
@@ -62,6 +65,11 @@ export function FillJobsheetPage() {
           await enqueueSync({ table: 'jobsheets', operation: 'insert', payload: js as unknown as Record<string, unknown> });
         }
       }
+      // Already submitted (Back from /submitted, or a second tab): don't allow a second submission
+      if (js.submitted_at) {
+        if (!cancelled) navigate(`/jobs/${j.id}/submitted`, { replace: true });
+        return;
+      }
       if (!cancelled) setJobsheet(js);
 
       // Load template
@@ -77,14 +85,11 @@ export function FillJobsheetPage() {
   async function handleSubmit(answers: AnswersMap) {
     if (!jobsheet || !job || !profile) return;
 
-    const site = await db.sites.get(job.site_id).catch(() => null);
-    if (!site) return;
-
     const timeOffSite = new Date().toISOString();
     const submittedAt = new Date().toISOString();
 
     // Detect remedials
-    const remedialCreates = detectRemedials(template!, answers, jobsheet.id, site.id, profile.company_id);
+    const remedialCreates = detectRemedials(template!, answers, jobsheet.id, job.site_id, profile.company_id);
     const jobsheetKey = syncKey('jobsheets', jobsheet.id);
 
     const updatedJs: Jobsheet = {
@@ -94,7 +99,7 @@ export function FillJobsheetPage() {
       submitted_at: submittedAt,
       updated_at: new Date().toISOString(),
     };
-    const updatedJob: Job = { ...job, status: 'awaiting_review' };
+    const updatedJob: Job = applyStatus(job, 'awaiting_review', submittedAt);
 
     // One transaction, so a crash can't leave half a submission queued.
     // The server logs the submission to audit_log itself (trigger on jobsheets).
@@ -106,7 +111,6 @@ export function FillJobsheetPage() {
       for (const rc of remedialCreates) {
         const remedial = {
           ...rc,
-          id: crypto.randomUUID(),
           status: 'open' as const,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -123,7 +127,7 @@ export function FillJobsheetPage() {
       await enqueueJobStatus(job.id, 'awaiting_review', [jobsheetKey]);
     });
 
-    navigate(`/jobs/${job.id}/submitted`);
+    navigate(`/jobs/${job.id}/submitted`, { replace: true });
   }
 
   if (isLoading) return <div className="flex justify-center py-12"><Spinner /></div>;

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import { BottomNav } from './BottomNav';
 import { OfficeShell } from './OfficeShell';
@@ -13,6 +13,9 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const { profile, previewRole, setPreviewRole } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  // The jobsheet form has its own fixed Submit bar where the nav would be
+  const showBottomNav = !/^\/jobs\/[^/]+\/fill$/.test(pathname);
   const effectiveRole = previewRole ?? profile?.role;
   const isManager = effectiveRole === 'manager';
 
@@ -48,10 +51,10 @@ export function AppShell({ children }: AppShellProps) {
       {previewBanner}
       <div className={`min-h-screen flex flex-col bg-gray-50 ${previewRole ? 'pt-8' : ''}`}>
         <SyncStatusBanner />
-        <main className="flex-1 pb-16">
+        <main className={`flex-1 ${showBottomNav ? 'pb-16' : ''}`}>
           {children}
         </main>
-        <BottomNav />
+        {showBottomNav && <BottomNav />}
       </div>
     </>
   );

@@ -318,7 +318,8 @@ export interface AuthContextValue {
 
 // ─── Convenience type for creating a remedial (before it's persisted) ─────────
 
-export type RemedialCreate = Omit<Remedial, 'id' | 'created_at' | 'updated_at' | 'status'>;
+// id is deterministic (see remedialIdFor), so re-running detection gives the same rows.
+export type RemedialCreate = Omit<Remedial, 'created_at' | 'updated_at' | 'status'>;
 
 // ─── Photo with local Dexie blob (extended for offline storage) ───────────────
 

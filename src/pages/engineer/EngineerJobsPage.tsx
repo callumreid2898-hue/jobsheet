@@ -5,25 +5,20 @@ import { useJobs } from '../../hooks/useJobs';
 import { useSites } from '../../hooks/useSites';
 import { JobCard } from '../../components/JobCard';
 import { Spinner } from '../../components/ui/Spinner';
+import { addDaysISO, localISODate } from '../../lib/dates';
 import type { Job } from '../../types';
-
-function formatDate(d: Date): string {
-  return d.toISOString().split('T')[0];
-}
 
 export function EngineerJobsPage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState(() => formatDate(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() => localISODate());
   const { jobs, isLoading } = useJobs({ date: selectedDate, engineerId: profile?.id });
   const { sites } = useSites();
 
   const siteMap = new Map(sites.map(s => [s.id, s]));
 
   function changeDate(delta: number) {
-    const d = new Date(selectedDate + 'T00:00:00');
-    d.setDate(d.getDate() + delta);
-    setSelectedDate(formatDate(d));
+    setSelectedDate(d => addDaysISO(d, delta));
   }
 
   const displayDate = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-GB', {
@@ -39,7 +34,7 @@ export function EngineerJobsPage() {
         <button onClick={() => changeDate(-1)} className="p-2 text-gray-400 hover:text-gray-600 min-w-[44px] flex justify-center">‹</button>
         <div className="text-center">
           <p className="text-sm font-medium text-gray-900">{displayDate}</p>
-          {selectedDate === formatDate(new Date()) && (
+          {selectedDate === localISODate() && (
             <span className="text-xs text-blue-600 font-medium">Today</span>
           )}
         </div>
@@ -52,7 +47,7 @@ export function EngineerJobsPage() {
         <div className="text-center py-12 text-gray-400">
           <div className="text-4xl mb-3">📋</div>
           <p className="font-medium">No jobs for this date</p>
-          <button onClick={() => setSelectedDate(formatDate(new Date()))} className="mt-3 text-sm text-blue-600 hover:underline">
+          <button onClick={() => setSelectedDate(localISODate())} className="mt-3 text-sm text-blue-600 hover:underline">
             Back to today
           </button>
         </div>

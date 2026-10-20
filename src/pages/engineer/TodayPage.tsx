@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { useAuth } from '../../auth/AuthProvider';
 import { useJobs } from '../../hooks/useJobs';
-import { db } from '../../lib/db';
-import { enqueueJobStatus } from '../../offline/SyncQueue';
-import type { Job, JobStatus } from '../../types';
+import { changeJobStatus } from '../../offline/SyncQueue';
+import { engineerActions, type EngineerAction } from '../../lib/jobStatus';
+import { localISODate } from '../../lib/dates';
+import type { Job } from '../../types';
 
 const JOB_TYPE_LABELS: Record<string, string> = {
   reactive_callout: 'Reactive Callout',
@@ -20,39 +21,25 @@ const JOB_TYPE_LABELS: Record<string, string> = {
 export function TodayPage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localISODate();
 
   const { jobs, isLoading, refetch } = useJobs({
     date: today,
     engineerId: profile?.id,
   });
 
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    function handleOnline()  { setIsOnline(true); }
-    function handleOffline() { setIsOnline(false); }
-    window.addEventListener('online',  handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online',  handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  async function updateJobStatus(
-    job: Job,
-    status: JobStatus,
-    timestampField: 'travelling_at' | 'on_site_at' | 'completed_at',
-  ) {
+  // Status changes are queued, so they work offline too
+  async function runAction(job: Job, action: EngineerAction) {
+    if (action.kind === 'fill') {
+      navigate(`/jobs/${job.id}/fill`);
+      return;
+    }
     if (updatingId) return;
     setUpdatingId(job.id);
     try {
-      const now = new Date().toISOString();
-      const patch: Partial<Job> = { status, [timestampField]: now };
-      await db.jobs.update(job.id, patch);
-      await enqueueJobStatus(job.id, status);
+      await changeJobStatus(job, action.to);
       await refetch();
     } finally {
       setUpdatingId(null);
@@ -68,11 +55,7 @@ export function TodayPage() {
       <h1 className="text-xl font-bold text-slate-900 mb-0.5">Today</h1>
       <p className="text-sm text-slate-500 mb-4">{dateLabel}</p>
 
-      {!isOnline && (
-        <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-          You are offline — status buttons are disabled until reconnected.
-        </div>
-      )}
+
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner /></div>
@@ -82,8 +65,7 @@ export function TodayPage() {
         <div className="space-y-3">
           {jobs.map(job => {
             const isUpdating = updatingId === job.id;
-            const showStatusButtons = job.status === 'scheduled';
-            const buttonsDisabled = !isOnline || isUpdating;
+            const actions = engineerActions(job.status);
 
             return (
               <div
@@ -111,24 +93,17 @@ export function TodayPage() {
                   </div>
                 </div>
 
-                {/* Status action buttons */}
-                {showStatusButtons && (
+                {/* Next-step buttons */}
+                {actions.length > 0 && (
                   <div className="flex gap-2 px-4 pb-4">
-                    <StatusButton
-                      label="Travelling"
-                      disabled={buttonsDisabled}
-                      onClick={() => updateJobStatus(job, 'travelling', 'travelling_at')}
-                    />
-                    <StatusButton
-                      label="On Site"
-                      disabled={buttonsDisabled}
-                      onClick={() => updateJobStatus(job, 'on_site', 'on_site_at')}
-                    />
-                    <StatusButton
-                      label="Complete"
-                      disabled={buttonsDisabled}
-                      onClick={() => updateJobStatus(job, 'completed', 'completed_at')}
-                    />
+                    {actions.map(action => (
+                      <StatusButton
+                        key={action.label}
+                        label={action.label}
+                        disabled={isUpdating}
+                        onClick={() => runAction(job, action)}
+                      />
+                    ))}
                   </div>
                 )}
               </div>

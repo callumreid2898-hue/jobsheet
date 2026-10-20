@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { db } from '../lib/db';
+import { mergeServerRows } from '../lib/syncEngine';
 import { useAuth } from '../auth/AuthProvider';
 import type { Job, JobStatus } from '../types';
 
@@ -31,10 +32,9 @@ export function useJobs(options?: UseJobsOptions) {
 
       const { data, error: err } = await query;
       if (err) throw err;
-      const result = (data ?? []) as Job[];
+      // Cache in Dexie; rows with unsynced local changes keep the local copy
+      const result = await mergeServerRows('jobs', (data ?? []) as Job[]).catch(() => (data ?? []) as Job[]);
       setJobs(result);
-      // Sync to Dexie
-      await db.jobs.bulkPut(result).catch(() => {});
     } catch {
       // Fallback to Dexie
       let collection = db.jobs.where('company_id').equals(profile.company_id);

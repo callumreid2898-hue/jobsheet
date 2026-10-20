@@ -57,6 +57,22 @@ export async function getVisibleQueue(): Promise<SyncQueueItem[]> {
   return items.filter(i => i.user_id === null || i.user_id === identity.userId);
 }
 
+/**
+ * Caches freshly fetched rows in Dexie and returns what to show. Rows with an
+ * unsent local change keep the local copy, so a read racing the flush doesn't
+ * undo an optimistic write.
+ */
+export async function mergeServerRows<T extends { id: string }>(table: 'jobs', rows: T[]): Promise<T[]> {
+  const prefix = `${table}:`;
+  const queued = await db.sync_queue.where('entity_key').startsWith(prefix).toArray();
+  const pending = new Set(queued.map(i => i.entity_key.slice(prefix.length)));
+  const local = new Map(
+    (await db.table(table).bulkGet([...pending]) as (T | undefined)[]).flatMap(r => (r ? [[r.id, r] as const] : [])),
+  );
+  await db.table(table).bulkPut(rows.filter(r => !pending.has(r.id)));
+  return rows.map(r => local.get(r.id) ?? r);
+}
+
 async function updateQueueLength() {
   const items = identity.userId ? await getVisibleQueue() : [];
   setState({
@@ -290,6 +306,9 @@ export function startSyncEngine() {
 
   // Older builds cached Supabase API responses in Workbox; Dexie is the offline store now.
   if (typeof caches !== 'undefined') caches.delete('supabase-cache').catch(() => {/* silent */});
+
+  // Ask the browser not to evict Dexie under storage pressure (iOS especially)
+  navigator.storage?.persist?.().catch(() => {/* silent */});
 
   // The first flush runs when AuthProvider sets the identity.
 

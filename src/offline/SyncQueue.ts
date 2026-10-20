@@ -1,6 +1,7 @@
 import { db } from '../lib/db';
 import { getSyncIdentity, scheduleFlush } from '../lib/syncEngine';
-import type { JobStatus, SyncOperation } from '../types';
+import { applyStatus } from '../lib/jobStatus';
+import type { Job, JobStatus, SyncOperation } from '../types';
 
 export function syncKey(table: string, id: string): string {
   return `${table}:${id}`;
@@ -57,4 +58,14 @@ export function enqueueJobStatus(jobId: string, status: JobStatus, dependsOn: st
     entity_id: jobId,
     depends_on: dependsOn,
   });
+}
+
+/** Applies a status change to the local job and queues the RPC, atomically. Returns the updated job. */
+export async function changeJobStatus(job: Job, to: JobStatus, dependsOn: string[] = []): Promise<Job> {
+  const updated = applyStatus(job, to);
+  await db.transaction('rw', db.jobs, db.sync_queue, async () => {
+    await db.jobs.put(updated);
+    await enqueueJobStatus(job.id, to, dependsOn);
+  });
+  return updated;
 }

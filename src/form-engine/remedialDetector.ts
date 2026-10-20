@@ -1,4 +1,5 @@
 import type { TemplateDef, FieldDef } from '../templates/types';
+import { remedialIdFor } from '../lib/ids';
 import type { AnswersMap, RemedialCreate, PassFailNote, YesNoNa, RemedialPriority } from '../types';
 
 export function detectRemedials(
@@ -10,7 +11,7 @@ export function detectRemedials(
 ): RemedialCreate[] {
   const remedials: RemedialCreate[] = [];
 
-  function processFields(fields: FieldDef[], sectionAnswers: AnswersMap, sectionId: string) {
+  function processFields(fields: FieldDef[], sectionAnswers: AnswersMap, sectionId: string, instance: number) {
     // Find the priority field for this section's free-text remedials
     const priorityField = fields.find(f => f.id.endsWith('_priority') || f.id === 'remedial_priority' || f.id === 'additional_remedial_priority');
     const defaultPriority: RemedialPriority = (priorityField ? (sectionAnswers[priorityField.id] as RemedialPriority) : null) ?? 'recommended';
@@ -23,15 +24,16 @@ export function detectRemedials(
       if (field.id.endsWith('_free_text') && typeof value === 'string') {
         // Each non-empty line becomes a remedial
         const lines = value.split('\n').map(l => l.trim()).filter(Boolean);
-        for (const line of lines) {
+        lines.forEach((line, i) => {
           remedials.push({
+            id: remedialIdFor(jobsheetId, sectionId, instance, field.id, i),
             jobsheet_id: jobsheetId,
             site_id: siteId,
             company_id: companyId,
             description: line,
             priority: defaultPriority,
           });
-        }
+        });
         continue;
       }
 
@@ -43,6 +45,7 @@ export function detectRemedials(
         const triggerOn = field.remedialOn ?? 'fail';
         if (pfn?.result === triggerOn) {
           remedials.push({
+            id: remedialIdFor(jobsheetId, sectionId, instance, field.id),
             jobsheet_id: jobsheetId,
             site_id: siteId,
             company_id: companyId,
@@ -54,6 +57,7 @@ export function detectRemedials(
         const yna = value as YesNoNa;
         if (yna === (field.remedialOn ?? 'no')) {
           remedials.push({
+            id: remedialIdFor(jobsheetId, sectionId, instance, field.id),
             jobsheet_id: jobsheetId,
             site_id: siteId,
             company_id: companyId,
@@ -63,8 +67,6 @@ export function detectRemedials(
         }
       }
     }
-    // suppress unused param warning
-    void sectionId;
   }
 
   for (const section of template.sections) {
@@ -72,10 +74,10 @@ export function detectRemedials(
       const key = section.id + '_instances';
       const instances = answers[key] as AnswersMap[] | undefined;
       if (instances) {
-        instances.forEach(inst => processFields(section.fields, inst, section.id));
+        instances.forEach((inst, i) => processFields(section.fields, inst, section.id, i));
       }
     } else {
-      processFields(section.fields, answers, section.id);
+      processFields(section.fields, answers, section.id, 0);
     }
   }
 

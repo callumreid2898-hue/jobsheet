@@ -49,6 +49,14 @@ All writes must:
 - `useFormState(jobsheetId, template)` — manages `answers: AnswersMap`, debounced Dexie save every 2 s.
 - Repeatable section answers live at `answers[sectionId + '_instances']` as `AnswersMap[]`.
 - Remedial auto-detection: `detectRemedials(template, answers, jobsheetId, siteId, companyId)` — pure function, safe to call any time.
+- Ids that can be created twice are deterministic (`src/lib/ids.ts`): `jobsheetIdFor(jobId)`, `remedialIdFor(...)` (used by `detectRemedials`, so a re-run gives the same rows).
+- Validation lives in `src/form-engine/validation.ts`; repeatable-section errors are keyed by `instanceErrorKey(section, index, field)`.
+
+### Jobs and dates
+
+- Engineer status moves are defined once in `src/lib/jobStatus.ts` (mirrors `set_job_status`). Change status with `changeJobStatus(job, to)` from `src/offline/SyncQueue.ts`; completion only happens by submitting the jobsheet.
+- Calendar dates (`scheduled_date` etc.) come from `localISODate()` / `addDaysISO()` in `src/lib/dates.ts`. Never use `toISOString()` for a date: it's UTC, an hour behind in BST.
+- When caching fetched rows, use `mergeServerRows()` so rows with unsynced local changes aren't overwritten (only `useJobs` so far).
 
 ### PDF
 
@@ -58,7 +66,7 @@ All writes must:
 
 ### Sync Engine
 
-- `startSyncEngine()` is called once in `src/main.tsx`.
+- `startSyncEngine()` is called once, at module load in `src/App.tsx`.
 - `flushQueue()` is idempotent; calling it while already syncing returns `{ synced: 0, failed: 0 }` (and reruns once the current flush ends).
 - `enqueueSync()` schedules a debounced flush. The engine also flushes on `online`, on `visibilitychange`, every 30 s, and when `AuthProvider` sets the user via `setSyncIdentity()`.
 - Items are stamped with `user_id` and sent in `seq` order, only under that user's session.

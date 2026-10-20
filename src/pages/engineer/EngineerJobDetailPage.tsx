@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { db } from '../../lib/db';
-import { enqueueJobStatus } from '../../offline/SyncQueue';
-import { useAuth } from '../../auth/AuthProvider';
+import { changeJobStatus } from '../../offline/SyncQueue';
+import { engineerActions, type EngineerAction } from '../../lib/jobStatus';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { Spinner } from '../../components/ui/Spinner';
 import type { Job, Site, Customer, System } from '../../types';
@@ -11,7 +11,6 @@ import type { Job, Site, Customer, System } from '../../types';
 export function EngineerJobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { profile } = useAuth();
   const [job, setJob] = useState<Job | null>(null);
   const [site, setSite] = useState<Site | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -56,13 +55,22 @@ export function EngineerJobDetailPage() {
     load().catch(() => setIsLoading(false));
   }, [jobId]);
 
-  async function startJob() {
-    if (!job || !profile) return;
-    const updated: Job = { ...job, status: 'on_site', on_site_at: new Date().toISOString() };
-    await db.jobs.put(updated);
-    setJob(updated);
-    await enqueueJobStatus(job.id, 'on_site');
-    navigate(`/jobs/${job.id}/fill`);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Arriving on site goes straight into the jobsheet
+  async function runAction(action: EngineerAction) {
+    if (!job || isUpdating) return;
+    if (action.kind === 'fill') {
+      navigate(`/jobs/${job.id}/fill`);
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      setJob(await changeJobStatus(job, action.to));
+      if (action.to === 'on_site') navigate(`/jobs/${job.id}/fill`);
+    } finally {
+      setIsUpdating(false);
+    }
   }
 
   if (isLoading) return <div className="flex justify-center py-12"><Spinner /></div>;
@@ -114,17 +122,22 @@ export function EngineerJobDetailPage() {
       </div>
 
       <div className="mt-6">
-        {job.status === 'scheduled' && (
-          <button onClick={startJob} className="w-full bg-blue-600 text-white font-semibold py-3.5 rounded-xl text-base active:bg-blue-700">
-            Start Job
+        {engineerActions(job.status).map((action, i) => (
+          <button
+            key={action.label}
+            onClick={() => runAction(action)}
+            disabled={isUpdating}
+            className={i === 0
+              ? 'w-full bg-blue-600 text-white font-semibold py-3.5 rounded-xl text-base active:bg-blue-700 disabled:opacity-50'
+              : 'w-full mt-3 bg-white border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-base active:bg-gray-50 disabled:opacity-50'}
+          >
+            {job.status === 'scheduled' && i === 0 ? 'Start job' : action.label}
           </button>
+        ))}
+        {job.status === 'unassigned' && (
+          <p className="text-center py-3 text-sm text-gray-500">This job hasn't been scheduled yet. Ask the office to schedule it.</p>
         )}
-        {job.status === 'on_site' && (
-          <button onClick={() => navigate(`/jobs/${job.id}/fill`)} className="w-full bg-blue-600 text-white font-semibold py-3.5 rounded-xl text-base active:bg-blue-700">
-            Continue Jobsheet
-          </button>
-        )}
-        {job.status === 'awaiting_review' && (
+        {['awaiting_review', 'reviewed', 'invoiced'].includes(job.status) && (
           <div className="text-center py-3 text-green-600 font-medium">✓ Jobsheet submitted</div>
         )}
       </div>

@@ -122,6 +122,13 @@ Confirm against the hosted project before any SQL is written. This needs your go
 
 ## Batch 4 — Engineer job flow (M) · C10 H10 H11 M5 M6 M8 H17 (engineer pages)
 
+**Batch 4 result (2026-10-20), done locally:** all items below. Also fixed, found by the new e2e test:
+- `useJobs` re-fetch overwrote optimistic local job changes with the stale server row before the queue flushed (Today buttons snapped back). New `mergeServerRows()` keeps rows with unsent queue items; other hooks still `bulkPut` blindly (Batch 6).
+- The engineer bottom nav covered the jobsheet's fixed Submit bar, so Submit couldn't be tapped. The nav is hidden on `/jobs/:id/fill`.
+Not done: "Assigning sets `scheduled`" (C10, planner — Batch 7); `unassigned` jobs show a "not scheduled yet" note instead of buttons. H17 for dashboard/CreateJob/invoices/reports is Batch 7 (helper is ready in `src/lib/dates.ts`).
+A "fail" now always needs a note, even on optional fields.
+Tests: `tests/unit/jobFlow.test.ts` (transitions vs the RPC, BST/GMT dates, stable ids, validation), `tests/e2e/engineer-flow.spec.ts` (Today → travelling → arrive → fill → double-tap submit → no resubmit, with a fake Supabase).
+
 **Files:** new `src/lib/jobStatus.ts` (transitions + labels), new `src/lib/dates.ts` (`localISODate`, `formatUKDateTime`), `TodayPage.tsx`, `EngineerJobDetailPage.tsx`, `EngineerJobsPage.tsx`, `FillJobsheetPage.tsx`, `FormEngine.tsx`, `useFormState.ts`, `remedialDetector.ts`.
 
 - Next-step buttons for every non-final status. "Complete" goes through submit. All status changes go through the `set_job_status` RPC (queued as `rpc` when offline). Remove the "disabled offline" behaviour.
