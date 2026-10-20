@@ -66,6 +66,7 @@ export interface Profile {
   role: UserRole;
   full_name: string;
   email: string;
+  active: boolean; // false = removed from the company (00013)
   created_at: string;
 }
 
@@ -318,7 +319,15 @@ export interface AuthContextValue {
   previewRole: UserRole | null;
   setPreviewRole: (role: UserRole | null) => void;
   signOut: () => Promise<void>;
+  /** Whether the signed-in user can use the app (see AuthProvider). */
+  access: AccessState;
+  /** Re-reads the profile and company (after onboarding). */
+  refreshProfile: () => Promise<void>;
 }
+
+// ok: active profile. none: signed in, no profile and no invite (onboarding).
+// removed: their profile was deactivated. offline: no cached profile and no connection.
+export type AccessState = 'ok' | 'none' | 'removed' | 'offline';
 
 // ─── Convenience type for creating a remedial (before it's persisted) ─────────
 

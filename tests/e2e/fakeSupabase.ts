@@ -24,7 +24,13 @@ export type Row = Record<string, unknown>;
 export interface Write { method: string; table: string; body: unknown; prefer: string }
 export interface Upload { bucket: string; path: string; body: string }
 
-export async function fakeSupabase(page: Page, db: Record<string, Row[]>) {
+export type RpcHandler = (args: Row, db: Record<string, Row[]>) => { status?: number; body: unknown };
+
+/**
+ * `rpcs` adds or overrides RPC handlers (set_job_status is built in). Unknown
+ * RPCs and Edge Functions return 404, as when they aren't deployed.
+ */
+export async function fakeSupabase(page: Page, db: Record<string, Row[]>, rpcs: Record<string, RpcHandler> = {}) {
   const writes: Write[] = [];
   const uploads: Upload[] = [];
 
@@ -48,12 +54,23 @@ export async function fakeSupabase(page: Page, db: Record<string, Row[]>) {
     }
     if (path.startsWith('/storage/v1/')) return json(400, { error: 'not found', message: 'Object not found' });
 
-    if (path === '/rest/v1/rpc/set_job_status') {
+    if (path.startsWith('/functions/v1/')) return json(404, { error: 'Requested function was not found' });
+
+    if (path === '/rest/v1/rpc/set_job_status' && !rpcs.set_job_status) {
       const { p_job_id, p_status } = req.postDataJSON();
       writes.push({ method: 'RPC', table: 'set_job_status', body: { p_job_id, p_status }, prefer: '' });
       const job = db.jobs.find(j => j.id === p_job_id)!;
       job.status = p_status;
       return json(200, job);
+    }
+    if (path.startsWith('/rest/v1/rpc/')) {
+      const fn = path.slice('/rest/v1/rpc/'.length);
+      const args = (req.postDataJSON() ?? {}) as Row;
+      writes.push({ method: 'RPC', table: fn, body: args, prefer: '' });
+      const handler = rpcs[fn];
+      if (!handler) return json(404, { code: 'PGRST202', message: `Could not find the function ${fn}` });
+      const res = handler(args, db);
+      return json(res.status ?? 200, res.body);
     }
 
     const table = path.replace('/rest/v1/', '');

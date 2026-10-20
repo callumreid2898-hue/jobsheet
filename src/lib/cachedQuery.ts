@@ -41,6 +41,8 @@ function sortRows<T>(rows: T[], order: CachedQuery<T>['order']): T[] {
   });
 }
 
+const isCached = (table: string) => db.tables.some(t => t.name === table);
+
 export async function fetchCached<T extends { id: string }>(q: CachedQuery<T>): Promise<CachedResult<T>> {
   const matches = matcher(q);
   try {
@@ -49,9 +51,12 @@ export async function fetchCached<T extends { id: string }>(q: CachedQuery<T>): 
     if (q.order) query = query.order(q.order.column, { ascending: q.order.ascending ?? true });
     const { data, error } = await query;
     if (error) throw error;
+    if (!isCached(q.table)) return { rows: sortRows(((data ?? []) as T[]).filter(matches), q.order), fromCache: false };
     const rows = await mergeServerRows(q.table, (data ?? []) as T[], matches);
     return { rows: sortRows(rows, q.order), fromCache: false };
   } catch {
+    // Tables that aren't cached on the device (e.g. invites) just come back empty
+    if (!isCached(q.table)) return { rows: [], fromCache: true };
     const local = await db.table(q.table).toArray().catch(() => [] as T[]) as T[];
     return { rows: sortRows(local.filter(matches), q.order), fromCache: true };
   }

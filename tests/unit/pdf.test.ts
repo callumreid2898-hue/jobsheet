@@ -94,7 +94,7 @@ const props: JobsheetPDFProps = {
     billing_address: null, notes: null, created_at: '', updated_at: '',
   },
   company: { id: 'co', name: 'Test Fire Ltd', logo_url: null, address: null, accreditation_number: null, created_at: '' },
-  engineerProfile: { id: 'eng', user_id: 'u', company_id: 'co', role: 'engineer', full_name: 'Sam Engineer', email: '', created_at: '' },
+  engineerProfile: { id: 'eng', user_id: 'u', company_id: 'co', role: 'engineer', active: true, full_name: 'Sam Engineer', email: '', created_at: '' },
   photos: [
     { id: 'p1', jobsheet_id: 'js', company_id: 'co', storage_path: 'co/js/p1.jpg', caption: 'Panel', created_at: '' },
     { id: 'p2', jobsheet_id: 'js', company_id: 'co', storage_path: 'co/js/p2.jpg', caption: 'Missing', created_at: '' },

@@ -65,6 +65,7 @@ const ENGINEER: Profile = {
   role:       'engineer',
   full_name:  'Callum Reid',
   email:      'callum.reid@emtec.co.uk',
+  active:     true,
   created_at: '2024-01-01T00:00:00Z',
 };
 

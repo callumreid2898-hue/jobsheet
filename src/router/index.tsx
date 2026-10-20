@@ -20,6 +20,7 @@ import { RemedialsListPage } from '../pages/manager/RemedialsListPage';
 import { SitesPage } from '../pages/manager/SitesPage';
 import { CreateSitePage } from '../pages/manager/CreateSitePage';
 import { SettingsPage } from '../pages/manager/SettingsPage';
+import { TeamPage } from '../pages/manager/TeamPage';
 import { ContractsListPage } from '../pages/manager/ContractsListPage';
 import { CreateContractPage } from '../pages/manager/CreateContractPage';
 import { ContractDetailPage } from '../pages/manager/ContractDetailPage';
@@ -139,6 +140,7 @@ export function AppRoutes() {
 
       {/* ── Manager settings ───────────────────────────────────── */}
       <Route path="/manager/settings" element={<M><SettingsPage /></M>} />
+      <Route path="/manager/team" element={<M><TeamPage /></M>} />
 
       {/* ── QR Scanner (both roles) ────────────────────────────── */}
       <Route path="/scan" element={<AuthGuard><AppShell><ScannerPage /></AppShell></AuthGuard>} />

@@ -244,6 +244,33 @@ Tests: `tests/unit/jobFlow.test.ts` (transitions vs the RPC, BST/GMT dates, stab
 
 ## Batch 8 — Onboarding and team (L) · H4 H5 M3 M4
 
+**Batch 8 result (2026-10-20), done locally, not applied to hosted.** All items below. Notes:
+- **Migration `00013_team.sql`:**
+  - `profiles.active`;
+  - `get_my_company_id/role/profile_id()` ignore inactive profiles, so every RLS policy shuts a removed member out;
+  - a new `profiles_select_self` policy, so a removed user can still see they were removed;
+  - `create_company_and_manager(name, full_name)`. It refuses if the user already has a profile, or has a pending invite (they should join that company instead).
+  - `remove_member(id)`: deactivates, and unassigns their scheduled/travelling/on_site/completed jobs. Returns the count.
+  - `restore_member(id)`.
+  - `set_member_role(id, role)`: a company always keeps one active manager.
+  - All manager-only, own company, not yourself (`managed_member` helper; no grant).
+- **No `accept_invite` RPC:** 00010's `claim_invite()` already does it. `AuthProvider` calls it whenever a signed-in user has no profile.
+- **Edge Function `supabase/functions/invite-user`:**
+  - Writes the invite with the caller's JWT, so RLS decides whether they may invite.
+  - Then calls `auth.admin.inviteUserByEmail` with the service role. That uses Supabase's built-in invite email, so no email provider is needed (it has a low rate limit; the Batch 5 report email is still separate).
+  - If the person already has a login, they just sign in and the invite is claimed.
+  - **Not deployed or tested against a real project** (no Supabase CLI here). The Team page falls back to saving the invite and telling the manager to send the login from the dashboard.
+- **AuthProvider:** server-first profile and company on every start, on `online`, and on user change. Removed → wipe Dexie. Offline with nothing cached → an "offline" screen instead of an empty app. Start-up loads are de-duplicated.
+- **M4 (hand-off):**
+  - The removed engineer's unfinished jobs go back to the planner's Unassigned / "Needs attention".
+  - A jobsheet already on the server stays with the job, so the next engineer gets it.
+  - Unsynced work on the removed device is lost. The confirm on the Team page says so, and suggests the engineer syncs first.
+- **Tests:**
+  - `tests/db/rls.test.ts` "team (00013)", 6 tests: create company once, invite beats create, removal lock-out and job hand-off, restore, permission checks, last manager;
+  - `tests/unit/auth.test.ts`, 7 tests: every `resolveProfile` outcome;
+  - `tests/e2e/team.spec.ts`, 3 tests: onboarding → dashboard, removed screen with Dexie wiped, Team page invite fallback and remove.
+  - These run against PGlite and the fake Supabase, not local Supabase (none available).
+
 **Files:** a new migration (`create_company_and_manager`, `accept_invite`, `remove_member`, `set_member_role` RPCs), a new Edge Function `invite-user`, new `OnboardingPage` and `TeamPage`, `AuthProvider.tsx`, `AuthGuard.tsx`, `AuthCallbackPage.tsx`.
 
 - First login with no profile and no invite shows "Create your company". With an invite, accept it.

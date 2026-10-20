@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
+import { OnboardingPage } from './OnboardingPage';
 import type { UserRole } from '../types';
 
 interface Props {
@@ -9,7 +10,7 @@ interface Props {
 }
 
 export function AuthGuard({ children, requiredRole }: Props) {
-  const { session, profile, isLoading, previewRole } = useAuth();
+  const { session, profile, isLoading, previewRole, access } = useAuth();
 
   if (isLoading) {
     return (
@@ -20,6 +21,9 @@ export function AuthGuard({ children, requiredRole }: Props) {
   }
 
   if (!session) return <Navigate to="/login" replace />;
+
+  // Signed in but no usable profile: onboarding, removed or offline. Never the route itself.
+  if (access !== 'ok' || !profile) return <OnboardingPage />;
 
   // previewRole overrides real role for route access checks
   const effectiveRole = previewRole ?? profile?.role;

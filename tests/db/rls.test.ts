@@ -321,3 +321,72 @@ describe('sync retries', () => {
       `on conflict (id) do update set description = excluded.description`)))).rejects.toThrow();
   });
 });
+
+describe('team (00013)', () => {
+  const NEW = '00000000-0000-0000-0000-0000000000f1';
+  const INVITED = '00000000-0000-0000-0000-0000000000f2';
+  const J = '00000000-0000-0000-0002-0000000000bb';
+  const one = async <T,>(uid: string, sql: string) => (await as(db, uid, () => db.query<T>(sql))).rows[0];
+
+  it('a user with no profile and no invite can create a company and becomes its manager, once', async () => {
+    await db.query(`insert into auth.users (id, email) values ('${NEW}', 'founder@new.test')`);
+    const { create_company_and_manager: co } = await one<{ create_company_and_manager: string }>(NEW,
+      `select create_company_and_manager('New Fire Ltd', 'Fran Founder')`);
+    expect(await rows(`select name from companies where id = '${co}'`)).toEqual([{ name: 'New Fire Ltd' }]);
+    expect(await rows(`select company_id, role, full_name, email from profiles where user_id = '${NEW}'`))
+      .toEqual([{ company_id: co, role: 'manager', full_name: 'Fran Founder', email: 'founder@new.test' }]);
+    await expect(as(db, NEW, () => db.query(`select create_company_and_manager('Second', '')`)))
+      .rejects.toThrow(/already belong/);
+  });
+
+  it('someone with a pending invite joins that company instead of creating one', async () => {
+    await db.query(`insert into auth.users (id, email) values ('${INVITED}', 'invited@a.test')`);
+    await as(db, U.mgrA, () => db.query(`insert into invites (company_id, email) values ('${CO_A}', 'invited@a.test')`));
+    await expect(as(db, INVITED, () => db.query(`select create_company_and_manager('Mine', '')`)))
+      .rejects.toThrow(/pending invite/);
+    expect((await one<{ claim_invite: boolean }>(INVITED, `select claim_invite()`)).claim_invite).toBe(true);
+    expect(await rows(`select company_id from profiles where user_id = '${INVITED}'`)).toEqual([{ company_id: CO_A }]);
+  });
+
+  it('removing a member shuts them out, hands back their unfinished jobs, and they can still see they were removed', async () => {
+    await db.exec(`
+      insert into jobs (id, company_id, site_id, type, template_id, assigned_engineer_id, scheduled_date, status) values
+        ('${J}', '${CO_A}', '00000000-0000-0000-0005-00000000000a', 'reactive_callout', 'reactive_callout', '${P.engA2}', '2026-10-26', 'on_site')`);
+    const { remove_member: n } = await one<{ remove_member: number }>(U.mgrA, `select remove_member('${P.engA2}')`);
+    expect(n).toBeGreaterThanOrEqual(1);
+    expect(await rows(`select assigned_engineer_id, status from jobs where id = '${J}'`))
+      .toEqual([{ assigned_engineer_id: null, status: 'unassigned' }]);
+
+    expect((await one<{ c: string | null }>(U.engA2, `select get_my_company_id() c`)).c).toBeNull();
+    expect(await as(db, U.engA2, () => count(`select count(*)::int n from jobs`))).toBe(0);
+    expect(await as(db, U.engA2, () => rows(`select active from profiles`))).toEqual([{ active: false }]);
+    // The rest of the company still sees them (greyed out on the Team page)
+    expect(await as(db, U.mgrA, () => rows(`select active from profiles where id = '${P.engA2}'`))).toEqual([{ active: false }]);
+  });
+
+  it('restore_member gives access back', async () => {
+    await as(db, U.mgrA, () => db.query(`select restore_member('${P.engA2}')`));
+    expect((await one<{ c: string }>(U.engA2, `select get_my_company_id() c`)).c).toBe(CO_A);
+  });
+
+  it('only managers manage members, only in their own company, and not themselves', async () => {
+    await expect(as(db, U.engA, () => db.query(`select remove_member('${P.engA2}')`))).rejects.toThrow(/only managers/);
+    await expect(as(db, U.mgrB, () => db.query(`select remove_member('${P.engA}')`))).rejects.toThrow(/not found/);
+    await expect(as(db, U.mgrA, () => db.query(`select remove_member('${P.mgrA}')`))).rejects.toThrow(/yourself/);
+    await expect(as(db, U.engA, () => db.query(`select set_member_role('${P.engA}', 'manager')`))).rejects.toThrow(/only managers/);
+    await expect(as(db, U.mgrA, () => db.query(`select managed_member('${P.engA}')`))).rejects.toThrow(/permission denied/);
+  });
+
+  it('a company always keeps a manager', async () => {
+    await expect(as(db, U.mgrA, () => db.query(`select set_member_role('${P.mgrA}', 'engineer')`)))
+      .rejects.toThrow(/at least one manager/);
+    await as(db, U.mgrA, () => db.query(`select set_member_role('${P.engA}', 'manager')`));
+    await as(db, U.mgrA, () => db.query(`select set_member_role('${P.mgrA}', 'engineer')`)); // engA is a manager now
+    expect(await rows(`select role from profiles where id in ('${P.mgrA}', '${P.engA}') order by id`))
+      .toEqual([{ role: 'engineer' }, { role: 'manager' }]);
+    // put them back for any later tests
+    await as(db, U.engA, () => db.query(`select set_member_role('${P.mgrA}', 'manager')`));
+    await as(db, U.mgrA, () => db.query(`select set_member_role('${P.engA}', 'engineer')`));
+    await expect(as(db, U.mgrA, () => db.query(`select set_member_role('${P.engA}', 'owner')`))).rejects.toThrow(/invalid role/);
+  });
+});
