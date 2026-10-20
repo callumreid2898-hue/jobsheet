@@ -26,7 +26,7 @@ export function SitesPage() {
             const customer = customerMap.get(site.customer_id);
             if (!customer) return null;
             const sysCount = systems.filter(s => s.site_id === site.id).length;
-            return <SiteCard key={site.id} site={site} customer={customer} systemCount={sysCount} onClick={() => navigate(`/manager/sites/${site.id}/history`)} />;
+            return <SiteCard key={site.id} site={site} customer={customer} systemCount={sysCount} onClick={() => navigate(`/manager/sites/${site.id}`)} />;
           })}
         </div>
       )}

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { db } from '../../lib/db';
 import { fetchCached } from '../../lib/cachedQuery';
-import { writeRecords } from '../../lib/writeRecord';
+import { writeRecords, type Write } from '../../lib/writeRecord';
+import { addDaysISO, localISODate } from '../../lib/dates';
 import { useAuth } from '../../auth/AuthProvider';
 import { useCustomers } from '../../hooks/useCustomers';
 import { useSites } from '../../hooks/useSites';
@@ -25,15 +26,6 @@ const VAT_OPTIONS = [
   { value: 0.20, label: '20%' },
 ];
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDays(iso: string, days: number): string {
-  const d = new Date(iso);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 function newLine(): LineItem {
   return {
@@ -61,6 +53,7 @@ export function CreateInvoicePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const quoteIdParam = searchParams.get('quoteId');
+  const jobIdParam = searchParams.get('job');
   const { profile } = useAuth();
   const { toasts, addToast, removeToast } = useToast();
 
@@ -70,8 +63,8 @@ export function CreateInvoicePage() {
   const [jobId, setJobId]               = useState('');
   const [quoteId, setQuoteId]           = useState(quoteIdParam ?? '');
   const [reference, setReference]       = useState('');
-  const [issuedDate, setIssuedDate]     = useState(todayIso());
-  const [dueDate, setDueDate]           = useState(addDays(todayIso(), 30));
+  const [issuedDate, setIssuedDate]     = useState(localISODate());
+  const [dueDate, setDueDate]           = useState(addDaysISO(localISODate(), 30));
   const [notes, setNotes]               = useState('');
   const [lines, setLines]               = useState<LineItem[]>([newLine()]);
   const [submitting, setSubmitting]     = useState(false);
@@ -88,9 +81,22 @@ export function CreateInvoicePage() {
     : sites;
 
   // Filter jobs by site
-  const filteredJobs = siteId
-    ? jobs.filter(j => j.site_id === siteId)
-    : jobs;
+  // Only reviewed jobs can be invoiced, which also stops a job being invoiced twice
+  const filteredJobs = jobs.filter(j => j.status === 'reviewed' && (!siteId || j.site_id === siteId));
+
+  // ?job= (from the job page): prefill the job, its site and customer once loaded
+  const [prefilled, setPrefilled] = useState(false);
+  useEffect(() => {
+    if (prefilled || !jobIdParam || jobs.length === 0 || sites.length === 0) return;
+    const job = jobs.find(j => j.id === jobIdParam && j.status === 'reviewed');
+    const site = job && sites.find(s => s.id === job.site_id);
+    if (job && site) {
+      setCustomerId(site.customer_id);
+      setSiteId(site.id);
+      setJobId(job.id);
+    }
+    setPrefilled(true);
+  }, [prefilled, jobIdParam, jobs, sites]);
 
   // Auto-generate reference
   useEffect(() => {
@@ -210,10 +216,13 @@ export function CreateInvoicePage() {
         }));
 
       // Kept on the device and queued if the server can't take it (writeRecords shows why)
-      await writeRecords([
+      const writes: Write[] = [
         { table: 'invoices', op: 'insert', row: { ...invoice } },
         ...invoiceLines.map(l => ({ table: 'invoice_lines', op: 'insert' as const, row: { ...l } })),
-      ]);
+      ];
+      // The job moves to invoiced with the invoice (after it, in the same queued change)
+      if (invoice.job_id) writes.push({ table: 'jobs', op: 'update', row: { id: invoice.job_id, status: 'invoiced' } });
+      await writeRecords(writes);
 
       navigate(`/manager/invoices/${invoiceId}`);
     } catch (err) {
@@ -304,7 +313,7 @@ export function CreateInvoicePage() {
               disabled={!siteId || jobsLoading}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D3349]/30 disabled:bg-slate-50 disabled:text-slate-400"
             >
-              <option value="">None</option>
+              <option value="">{filteredJobs.length === 0 ? 'No reviewed jobs at this site' : 'None'}</option>
               {filteredJobs.map(j => (
                 <option key={j.id} value={j.id}>
                   {j.scheduled_date} — {j.type.replace(/_/g, ' ')}

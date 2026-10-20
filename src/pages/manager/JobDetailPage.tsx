@@ -12,7 +12,11 @@ import { fetchCached, fetchOneCached } from '../../lib/cachedQuery';
 import { writeRecord } from '../../lib/writeRecord';
 import { openStorageFile } from '../../lib/media';
 import { useOnline } from '../../lib/useOnline';
-import type { Job, Jobsheet, Site, Customer, JobLine, Remedial } from '../../types';
+import { supabase } from '../../lib/supabaseClient';
+import { isPlannable, managerActions, statusAfterAssign } from '../../lib/jobStatus';
+import { buildTimeline } from '../../lib/jobTimeline';
+import { formatUKDateTime } from '../../lib/dates';
+import type { Job, Jobsheet, JobStatus, Site, Customer, JobLine, Remedial, AuditLog } from '../../types';
 import type { TemplateDef } from '../../templates/types';
 
 const TABS = [
@@ -42,6 +46,7 @@ export function JobDetailPage() {
   const navigate = useNavigate();
   const { company } = useAuth();
   const { profiles: engineers } = useProfiles({ role: 'engineer' });
+  const { profiles: everyone } = useProfiles();
 
   const activeTab = useActiveTab('tab', 'details');
 
@@ -68,6 +73,11 @@ export function JobDetailPage() {
 
   // Engineer reassign
   const [reassigning, setReassigning] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
+
+  // History tab (audit_log is manager-readable and online only)
+  const [audit, setAudit] = useState<AuditLog[]>([]);
+  const [auditOffline, setAuditOffline] = useState(false);
 
   // ── Load job, site, customer ────────────────────────────────────────────────
   useEffect(() => {
@@ -150,14 +160,44 @@ export function JobDetailPage() {
     loadLines();
   }, [activeTab, jobId]);
 
+  // ── History ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (activeTab !== 'history' || !job) return;
+    let cancelled = false;
+    (async () => {
+      const js = jobsheet ?? (await fetchCached<Jobsheet>({ table: 'jobsheets', eq: { job_id: job.id } })).rows[0] ?? null;
+      if (js && !jobsheet) setJobsheet(js);
+      const ids = [job.id, ...(js ? [js.id] : [])];
+      const { data, error } = await supabase.from('audit_log').select('*').in('entity_id', ids);
+      if (cancelled) return;
+      setAudit(error ? [] : (data ?? []) as AuditLog[]);
+      setAuditOffline(!!error);
+    })();
+    return () => { cancelled = true; };
+  }, [activeTab, job?.id, job?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Engineer reassign ─────────────────────────────────────────────────────
+  // Assigning schedules an unassigned job; unassigning a scheduled job un-schedules it.
   async function handleReassign(engineerId: string) {
     if (!job) return;
     setReassigning(true);
     const newVal = engineerId || null;
-    setJob({ ...job, assigned_engineer_id: newVal });
-    await writeRecord('jobs', 'update', { id: job.id, assigned_engineer_id: newVal });
+    const status = statusAfterAssign(job.status, newVal);
+    setJob({ ...job, assigned_engineer_id: newVal, status });
+    await writeRecord('jobs', 'update', { id: job.id, assigned_engineer_id: newVal, ...(status !== job.status ? { status } : {}) });
     setReassigning(false);
+  }
+
+  // ── Review / cancel ───────────────────────────────────────────────────────
+  async function setStatus(status: JobStatus) {
+    if (!job) return;
+    if (status === 'cancelled' && !window.confirm('Cancel this job? The engineer will no longer see it as active.')) return;
+    setStatusBusy(true);
+    const before = job;
+    setJob({ ...job, status });
+    const res = await writeRecord('jobs', 'update', { id: job.id, status });
+    if (res.status === 'failed') setJob(before);
+    setStatusBusy(false);
   }
 
   // ── PDF ───────────────────────────────────────────────────────────────────
@@ -219,6 +259,8 @@ export function JobDetailPage() {
   }
 
   const assignedEngineerId = job.assigned_engineer_id ?? '';
+  const canReassign = isPlannable(job.status);
+  const actions = managerActions(job.status);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -228,12 +270,42 @@ export function JobDetailPage() {
         badge={<StatusPill status={job.status} />}
         onBack={() => navigate('/manager/jobs')}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {actions.includes('review') && (
+              <button
+                type="button"
+                onClick={() => setStatus('reviewed')}
+                disabled={statusBusy}
+                className="rounded-lg bg-green-600 text-white px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+              >
+                Mark reviewed
+              </button>
+            )}
+            {actions.includes('invoice') && (
+              <button
+                type="button"
+                onClick={() => navigate(`/manager/invoices/create?job=${job.id}`)}
+                className="rounded-lg bg-[#0D3349] text-white px-3 py-1.5 text-xs font-medium"
+              >
+                Create invoice
+              </button>
+            )}
+            {actions.includes('cancel') && (
+              <button
+                type="button"
+                onClick={() => setStatus('cancelled')}
+                disabled={statusBusy}
+                className="rounded-lg border border-red-200 text-red-600 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+              >
+                Cancel job
+              </button>
+            )}
             <label className="text-xs text-slate-500 sr-only">Reassign</label>
             <select
               value={assignedEngineerId}
               onChange={e => handleReassign(e.target.value)}
-              disabled={reassigning}
+              disabled={reassigning || !canReassign}
+              title={canReassign ? undefined : 'Started or closed jobs can’t be reassigned'}
               className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-[#0D3349]"
               aria-label="Reassign engineer"
             >
@@ -260,7 +332,7 @@ export function JobDetailPage() {
               <select
                 value={assignedEngineerId}
                 onChange={e => handleReassign(e.target.value)}
-                disabled={reassigning}
+                disabled={reassigning || !canReassign}
                 className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-[#0D3349]"
               >
                 <option value="">— Unassigned —</option>
@@ -392,7 +464,22 @@ export function JobDetailPage() {
 
         {/* ── History tab ──────────────────────────────────────────────── */}
         {activeTab === 'history' && (
-          <EmptyState heading="Audit log coming soon" description="A full history of changes to this job will appear here." />
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            {auditOffline && (
+              <p className="text-xs text-amber-700 mb-3">Offline: showing what this device knows. Names and later changes appear when you're back online.</p>
+            )}
+            <ol className="relative border-l border-slate-200 ml-2 space-y-4" data-testid="job-timeline">
+              {buildTimeline(job, jobsheet, audit, everyone).map((e, i) => (
+                <li key={`${e.key}-${i}`} className="ml-4">
+                  <span className="absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white" />
+                  <p className="text-sm font-medium text-slate-800">{e.label}</p>
+                  <p className="text-xs text-slate-500">
+                    {formatUKDateTime(e.at)}{e.by && ` · ${e.by}`}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </div>
         )}
       </div>
     </div>

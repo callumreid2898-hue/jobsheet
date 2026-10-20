@@ -5,6 +5,7 @@ import { BottomNav } from './BottomNav';
 import { OfficeShell } from './OfficeShell';
 import { SyncStatusBanner } from '../../offline/SyncStatusBanner';
 import { GlobalToasts } from '../ui/GlobalToasts';
+import { useNotificationCount } from '../../hooks/useNotificationCount';
 
 interface AppShellProps {
   children: ReactNode;
@@ -19,6 +20,7 @@ export function AppShell({ children }: AppShellProps) {
   const showBottomNav = !/^\/jobs\/[^/]+\/fill$/.test(pathname);
   const effectiveRole = previewRole ?? profile?.role;
   const isManager = effectiveRole === 'manager';
+  const notificationCount = useNotificationCount(isManager);
 
   // Shown at top of screen whenever preview mode is active
   const previewBanner = previewRole !== null ? (
@@ -40,7 +42,7 @@ export function AppShell({ children }: AppShellProps) {
     return (
       <>
         {previewBanner}
-        <OfficeShell>{children}</OfficeShell>
+        <OfficeShell notificationCount={notificationCount}>{children}</OfficeShell>
       </>
     );
   }

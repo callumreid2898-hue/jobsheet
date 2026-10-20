@@ -81,7 +81,7 @@ const props: JobsheetPDFProps = {
   job: {
     id: 'job', company_id: 'co', site_id: 'site', system_id: null, type: 'ppm_service',
     template_id: 'fire_alarm_service', assigned_engineer_id: 'eng', scheduled_date: '2026-10-20',
-    status: 'awaiting_review', notes: null, scheduled_time: '09:00', travelling_at: null,
+    status: 'awaiting_review', notes: null, scheduled_time: '09:00', duration_minutes: null, travelling_at: null,
     on_site_at: '2026-10-20T08:55:00Z', completed_at: '2026-10-20T11:30:00Z', created_at: '2026-10-01T00:00:00Z',
   },
   site: {

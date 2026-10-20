@@ -274,6 +274,36 @@ describe('photos', () => {
   });
 });
 
+describe('job activity log (00012)', () => {
+  const J = '00000000-0000-0000-0002-0000000000aa';
+  const acts = async () => (await db.query<{ action: string; user_id: string }>(`select action, user_id from audit_log where entity_id = '${J}' order by created_at, action`)).rows;
+
+  it('logs creation, assignment and status changes with who did them', async () => {
+    await as(db, U.mgrA, () => db.query(`insert into jobs (id, company_id, site_id, type, template_id, scheduled_date, status)
+      values ('${J}', '${CO_A}', '00000000-0000-0000-0005-00000000000a', 'reactive_callout', 'reactive_callout', '2026-10-26', 'unassigned')`));
+    await as(db, U.mgrA, () => db.query(`update jobs set assigned_engineer_id = '${P.engA}', status = 'scheduled' where id = '${J}'`));
+    await as(db, U.mgrA, () => db.query(`update jobs set notes = 'gate code 1234' where id = '${J}'`)); // not logged
+    await as(db, U.engA, () => db.query(`select set_job_status('${J}', 'travelling')`));
+
+    expect((await acts()).map(r => [r.action, r.user_id]).sort()).toEqual([
+      ['job_assigned', U.mgrA],
+      ['job_created', U.mgrA],
+      ['job_status:scheduled', U.mgrA],
+      ['job_status:travelling', U.engA],
+    ].sort());
+  });
+
+  it('writes with no signed-in user (service role) are not logged', async () => {
+    const before = (await acts()).length;
+    await db.query(`update jobs set status = 'cancelled' where id = '${J}'`);
+    expect((await acts()).length).toBe(before);
+  });
+
+  it('engineers cannot read the log', async () => {
+    expect(await as(db, U.engA, () => count(`select count(*)::int n from audit_log where entity_id = '${J}'`))).toBe(0);
+  });
+});
+
 // What the sync queue sends when it retries an engineer's remedial insert.
 describe('sync retries', () => {
   const R1 = '00000000-0000-0000-0006-000000000001';

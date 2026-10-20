@@ -52,3 +52,33 @@ export function applyStatus(job: Job, to: JobStatus, now = new Date().toISOStrin
     completed_at: to === 'completed' || to === 'awaiting_review' ? job.completed_at ?? now : job.completed_at,
   };
 }
+
+// ─── Manager ──────────────────────────────────────────────────────────────────
+
+/** The planner (and reassigning) may only move jobs that haven't started. */
+export function isPlannable(status: JobStatus): boolean {
+  return status === 'unassigned' || status === 'scheduled';
+}
+
+/** Assigning an unassigned job schedules it; unassigning a scheduled job un-schedules it. */
+export function statusAfterAssign(status: JobStatus, engineerId: string | null): JobStatus {
+  if (status === 'unassigned' && engineerId) return 'scheduled';
+  if (status === 'scheduled' && !engineerId) return 'unassigned';
+  return status;
+}
+
+/** Jobs still in play (not cancelled or closed off). */
+export function isActiveJob(status: JobStatus): boolean {
+  return status !== 'cancelled' && status !== 'reviewed' && status !== 'invoiced';
+}
+
+export type ManagerAction = 'review' | 'invoice' | 'cancel';
+
+/** Manager actions on the job page. Invoicing is done by creating an invoice. */
+export function managerActions(status: JobStatus): ManagerAction[] {
+  const out: ManagerAction[] = [];
+  if (status === 'awaiting_review') out.push('review');
+  if (status === 'reviewed') out.push('invoice');
+  if (status !== 'invoiced' && status !== 'cancelled') out.push('cancel');
+  return out;
+}

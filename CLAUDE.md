@@ -57,6 +57,9 @@ In a `writeRecords` batch each write waits for the ones before it (parent before
 ### Jobs and dates
 
 - Engineer status moves are defined once in `src/lib/jobStatus.ts` (mirrors `set_job_status`). Change status with `changeJobStatus(job, to)` from `src/offline/SyncQueue.ts`; completion only happens by submitting the jobsheet.
+- Manager status rules are in `jobStatus.ts` too: `isPlannable()` (only unassigned/scheduled jobs can be moved or reassigned), `statusAfterAssign()` (assigning schedules, unassigning un-schedules), `managerActions()` (review / invoice / cancel). Creating an invoice for a job sets it to `invoiced` in the same `writeRecords` batch; the invoice job picker only offers `reviewed` jobs.
+- Planner maths (durations, `findClashes`, `movePatch`) is in `src/lib/planner.ts`; `duration_minutes` null means 60.
+- Every job creation, status change and reassignment is logged to `audit_log` by a trigger (00012); the job's History tab is `buildTimeline()` in `src/lib/jobTimeline.ts`.
 - Calendar dates (`scheduled_date` etc.) come from `localISODate()` / `addDaysISO()` in `src/lib/dates.ts`. Never use `toISOString()` for a date: it's UTC, an hour behind in BST.
 - When caching fetched rows, use `mergeServerRows()` so rows with unsynced local changes aren't overwritten (only `useJobs` so far).
 

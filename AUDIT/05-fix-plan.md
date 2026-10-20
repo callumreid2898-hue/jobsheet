@@ -204,6 +204,29 @@ Tests: `tests/unit/jobFlow.test.ts` (transitions vs the RPC, BST/GMT dates, stab
 
 ## Batch 7 — Job lifecycle and routing (M) · C13 C16 H14 H15 H16 M14 M15 H17 (dashboard)
 
+**Batch 7 result (2026-10-20), done locally, not applied to hosted:** all items below. Notes:
+- New migration `00012_job_activity.sql`. A trigger logs `job_created`, `job_status:<status>` and `job_assigned` to `audit_log` with the acting user. Writes with no user (service role) aren't logged. Before this, nothing logged status changes, so a timeline "built from audit_log" would have been empty.
+- History tab: `buildTimeline()` merges audit rows (with names) with the job's own timestamps (created, travelling, on site, submitted). So older jobs, and offline views, still show something.
+- JobDetailPage: Mark reviewed, Create invoice (`/manager/invoices/create?job=`, prefilled) and Cancel job (with a confirm). A rejected change rolls back. Reassigning also updates the status, and is disabled once the job has started. Manager status changes are a plain `update` of `status`, which `jobs_update_manager` allows; `set_job_status` is still for engineers.
+- "Locked" means anything past `scheduled` (travelling/on site as well as closed), for both the planner and reassigning.
+- Planner:
+  - optimistic drop with rollback on rejection;
+  - clash check with a confirm on drop, clashing cards outlined red;
+  - cards show start–end times;
+  - cancelled jobs hidden;
+  - a "Needs attention" strip holds overdue unassigned jobs and jobs assigned to non-engineers (M15's "other" lane).
+- CreateJobPage: duration field (default 60) and an inline overlap warning, plus a confirm.
+- Invoices: the picker only shows reviewed jobs, and the job goes to `invoiced` after the invoice in the same queued batch. Issued/due dates use `localISODate`/`addDaysISO`.
+- Dashboard: stats are now a pure `computeDashboardStats()`. Cancelled jobs are excluded; unassigned and donut counts use active jobs only; days and the 90-day cutoff come from the local date.
+- The jobs list follows `?status=` and the remedials list follows `?status=` / `?priority=` (a new priority filter; `?status=all` for every status).
+- The sidebar Remedials badge = open urgent remedials (`useNotificationCount`, fetched for managers only).
+- Routing: Sites cards link to `/manager/sites/:id`; the three legacy redirects use `relative="path"`. Deleted ReviewJobsheetPage, AssignEngineerPage and SiteHistoryPage.
+- e2e fake Supabase moved to `tests/e2e/fakeSupabase.ts`.
+- Tests:
+  - `tests/unit/planner.test.ts` (14): clash maths incl. back-to-back, movePatch status and locking, manager actions, dashboard stats incl. cancelled and the clock change, timeline;
+  - `tests/db/rls.test.ts` job activity log (3; the main one fails without 00012);
+  - `tests/e2e/manager-review.spec.ts` (3): review → invoice → job invoiced, Sites link and legacy redirects, planner drag schedules the job and it stays put.
+
 **Files:** `JobDetailPage.tsx`, `router/index.tsx`, `SitesPage.tsx`, `PlannerPage.tsx`, `CreateJobPage.tsx`, `CreateInvoicePage.tsx`, `useDashboardStats.ts`, `DashboardPage.tsx`, `ManagerJobsListPage.tsx`, `RemedialsListPage.tsx`, `AppShell.tsx`.
 
 - JobDetailPage: PDF link, Mark reviewed, Cancel, and an activity timeline built from `audit_log`.

@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useJobs } from '../../hooks/useJobs';
 import { useSites } from '../../hooks/useSites';
 import { useProfiles } from '../../hooks/useProfiles';
@@ -9,7 +8,14 @@ import type { JobStatus } from '../../types';
 
 export function ManagerJobsListPage() {
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<JobStatus | ''>('');
+  // The filter lives in the URL, so dashboard links (?status=…) open it pre-filtered
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusFilter = (searchParams.get('status') ?? '') as JobStatus | '';
+  const setStatusFilter = (value: JobStatus | '') => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('status', value); else next.delete('status');
+    setSearchParams(next, { replace: true });
+  };
   const { jobs, isLoading } = useJobs({ status: statusFilter || undefined });
   const { sites } = useSites();
   const { profiles } = useProfiles();

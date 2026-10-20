@@ -86,7 +86,7 @@ function makeJob(templateId: TemplateId, type: Job['type']): Job {
     template_id:          templateId,
     assigned_engineer_id: 'demo-engineer',
     scheduled_date:       '2026-10-17',
-    scheduled_time:       '09:00',
+    scheduled_time:       '09:00', duration_minutes: null,
     status:               'completed',
     notes:                null,
     travelling_at:        null,

@@ -1,15 +1,11 @@
-import { useJobs } from './useJobs';
-import { useInvoices } from './useInvoices';
+import { useCachedQuery } from './useCachedQuery';
+import type { Remedial } from '../types';
 
-/**
- * Returns total notification count = awaiting_review jobs + overdue invoices.
- */
-export function useNotificationCount(): number {
-  const { jobs } = useJobs();
-  const { invoices } = useInvoices();
-
-  const awaitingReview = jobs.filter(j => j.status === 'awaiting_review').length;
-  const overdueInvoices = invoices.filter(i => i.status === 'overdue').length;
-
-  return awaitingReview + overdueInvoices;
+/** The Remedials badge in the manager sidebar: open urgent remedials. */
+export function useNotificationCount(enabled = true): number {
+  const { rows } = useCachedQuery<Remedial>(
+    { table: 'remedials', eq: { status: 'open', priority: 'urgent' } },
+    { enabled },
+  );
+  return rows.length;
 }

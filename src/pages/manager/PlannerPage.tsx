@@ -1,8 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, createContext, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { writeRecord } from '../../lib/writeRecord';
+import { isPlannable } from '../../lib/jobStatus';
+import { localISODate } from '../../lib/dates';
+import { clashingIds, findClashes, fromMinutes, jobInterval, movePatch, overdueUnassigned } from '../../lib/planner';
 import { useJobs } from '../../hooks/useJobs';
 import { useProfiles } from '../../hooks/useProfiles';
 import { useSites } from '../../hooks/useSites';
@@ -80,10 +83,18 @@ interface JobCardProps {
   customerMap: Map<string, string>; // site_id -> customer name
 }
 
+/** Ids of jobs that overlap another job for the same engineer (set by PlannerPage). */
+const ClashContext = createContext<Set<string>>(new Set());
+
 function JobCard({ job, siteMap, customerMap }: JobCardProps) {
+  // Started and closed jobs stay where they are
+  const locked = !isPlannable(job.status);
+  const clashing = useContext(ClashContext).has(job.id);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: job.id,
+    disabled: locked,
   });
+  const interval = jobInterval(job);
 
   const style = transform
     ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50, opacity: isDragging ? 0.7 : 1 }
@@ -100,7 +111,11 @@ function JobCard({ job, siteMap, customerMap }: JobCardProps) {
       style={style}
       {...listeners}
       {...attributes}
-      className="bg-white border border-slate-200 rounded-lg p-2 shadow-xs cursor-grab active:cursor-grabbing select-none"
+      className={`bg-white border rounded-lg p-2 shadow-xs select-none ${
+        locked ? 'cursor-default opacity-75' : 'cursor-grab active:cursor-grabbing'
+      } ${clashing ? 'border-red-400 ring-1 ring-red-300' : 'border-slate-200'}`}
+      title={locked ? 'Started or closed jobs can’t be moved' : undefined}
+      data-testid={`planner-job-${job.id}`}
     >
       {customerName && (
         <div className="text-xs font-semibold text-slate-800 truncate mb-0.5" title={customerName}>
@@ -119,8 +134,10 @@ function JobCard({ job, siteMap, customerMap }: JobCardProps) {
         </span>
         <StatusPill status={job.status} kind="job" />
       </div>
-      {job.scheduled_time && (
-        <div className="text-xs text-slate-400 mt-0.5">{job.scheduled_time}</div>
+      {interval && (
+        <div className={`text-xs mt-0.5 ${clashing ? 'text-red-600 font-medium' : 'text-slate-400'}`}>
+          {fromMinutes(interval[0])}–{fromMinutes(interval[1])}{clashing && ' · overlaps'}
+        </div>
       )}
     </div>
   );
@@ -434,7 +451,15 @@ export function PlannerPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
 
-  const { jobs, isLoading: jobsLoading } = useJobs();
+  const { jobs: fetchedJobs, isLoading: jobsLoading, refetch: refetchJobs } = useJobs();
+  // Drops show at once; a rejected change is rolled back
+  const [moved, setMoved] = useState<Map<string, Job>>(new Map());
+  const jobs = useMemo(
+    () => fetchedJobs.filter(j => j.status !== 'cancelled').map(j => moved.get(j.id) ?? j),
+    [fetchedJobs, moved],
+  );
+  const clashes = useMemo(() => clashingIds(jobs), [jobs]);
+  const todayISO = localISODate();
   const { profiles, isLoading: profilesLoading } = useProfiles({ role: 'engineer' });
   const { sites, isLoading: sitesLoading } = useSites();
   const { customers, isLoading: customersLoading } = useCustomers();
@@ -475,6 +500,13 @@ export function PlannerPage() {
       ),
     [jobs, selectedDateISO]
   );
+
+  // Needs attention: unassigned jobs from earlier days, and jobs assigned to someone who isn't an engineer
+  const engineerIds = useMemo(() => new Set(profiles.map(p => p.id)), [profiles]);
+  const attentionJobs = useMemo(() => [
+    ...overdueUnassigned(jobs, todayISO),
+    ...jobs.filter(j => j.assigned_engineer_id && !engineerIds.has(j.assigned_engineer_id) && isPlannable(j.status)),
+  ], [jobs, todayISO, engineerIds]);
 
   const dayJobsForEngineer = (engineerId: string) =>
     jobs.filter(
@@ -524,17 +556,21 @@ export function PlannerPage() {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
 
-    const unchanged =
-      job.assigned_engineer_id === engineerId &&
-      (newDate === null || job.scheduled_date === newDate) &&
-      (newTime === null || job.scheduled_time === newTime);
-    if (unchanged) return;
+    const patch = movePatch(job, { engineerId, date: newDate, time: newTime });
+    if (!patch) return;
+    const next: Job = { ...job, ...patch };
 
-    const update: Partial<Job> = { assigned_engineer_id: engineerId };
-    if (newDate) update.scheduled_date = newDate;
-    if (newTime !== null) update.scheduled_time = newTime;
+    const overlaps = findClashes(next, jobs);
+    if (overlaps.length > 0) {
+      const times = overlaps.map(o => { const [s, e] = jobInterval(o)!; return `${fromMinutes(s)}–${fromMinutes(e)}`; }).join(', ');
+      if (!window.confirm(`This overlaps the engineer's other job${overlaps.length > 1 ? 's' : ''} at ${times}. Move it anyway?`)) return;
+    }
 
-    await writeRecord('jobs', 'update', { id: jobId, ...update });
+    setMoved(m => new Map(m).set(job.id, next));
+    const { status } = await writeRecord('jobs', 'update', { id: jobId, ...patch });
+    if (status !== 'failed') await refetchJobs();
+    // Saved or queued: the refetch now shows it. Rejected: back to where it was.
+    setMoved(m => { const copy = new Map(m); copy.delete(job.id); return copy; });
   }
 
   // ─── Create job navigation ───────────────────────────────────────────────────
@@ -638,7 +674,26 @@ export function PlannerPage() {
           <Spinner />
         </div>
       ) : (
+        <ClashContext.Provider value={clashes}>
         <DndContext onDragEnd={handleDragEnd}>
+          {attentionJobs.length > 0 && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3" data-testid="planner-attention">
+              <p className="text-xs font-semibold text-amber-800 mb-2">
+                Needs attention: unassigned jobs from earlier days, or jobs assigned to someone who isn't an engineer.
+                Drag them into the plan.
+              </p>
+              <div className="flex gap-2 overflow-x-auto">
+                {attentionJobs.map(job => (
+                  <div key={job.id} className="w-44 flex-shrink-0">
+                    <JobCard job={job} siteMap={siteMap} customerMap={customerMap} />
+                    <p className="text-[10px] text-amber-700 mt-0.5">
+                      {job.scheduled_date.split('-').reverse().join('/')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {viewMode === 'day' ? (
             /* ── Day view ── */
             <div className="flex gap-4 overflow-x-auto pb-4">
@@ -700,6 +755,7 @@ export function PlannerPage() {
             />
           )}
         </DndContext>
+        </ClashContext.Provider>
       )}
     </div>
   );

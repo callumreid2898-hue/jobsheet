@@ -133,6 +133,7 @@ export interface Job {
   status: JobStatus;
   notes: string | null;
   scheduled_time: string | null; // 'HH:mm'
+  duration_minutes: number | null; // planner default when null: DEFAULT_DURATION_MINUTES
   travelling_at: string | null;
   on_site_at: string | null;
   completed_at: string | null;

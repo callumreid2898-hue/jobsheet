@@ -90,9 +90,9 @@ export function AppRoutes() {
       <Route path="/manager/jobs/create" element={<M><CreateJobPage /></M>} />
       <Route path="/manager/jobs/:jobId" element={<M><JobDetailPage /></M>} />
 
-      {/* Legacy redirects for assign/review */}
-      <Route path="/manager/jobs/:jobId/assign" element={<AuthGuard requiredRole="manager"><Navigate to="../" replace /></AuthGuard>} />
-      <Route path="/manager/jobs/:jobId/review" element={<AuthGuard requiredRole="manager"><Navigate to="../" replace /></AuthGuard>} />
+      {/* Legacy URLs: up one level to the job (relative to the URL, not the route tree) */}
+      <Route path="/manager/jobs/:jobId/assign" element={<AuthGuard requiredRole="manager"><Navigate to=".." relative="path" replace /></AuthGuard>} />
+      <Route path="/manager/jobs/:jobId/review" element={<AuthGuard requiredRole="manager"><Navigate to=".." relative="path" replace /></AuthGuard>} />
 
       {/* ── Manager remedials ──────────────────────────────────── */}
       <Route path="/manager/remedials" element={<M><RemedialsListPage /></M>} />
@@ -106,8 +106,8 @@ export function AppRoutes() {
       <Route path="/manager/sites/create" element={<M><CreateSitePage /></M>} />
       <Route path="/manager/sites/:siteId" element={<M><SiteDetailPage /></M>} />
 
-      {/* Legacy redirect for site history */}
-      <Route path="/manager/sites/:siteId/history" element={<AuthGuard requiredRole="manager"><Navigate to="../" replace /></AuthGuard>} />
+      {/* Legacy URL: up one level to the site */}
+      <Route path="/manager/sites/:siteId/history" element={<AuthGuard requiredRole="manager"><Navigate to=".." relative="path" replace /></AuthGuard>} />
 
       {/* ── Manager sites → systems ────────────────────────────── */}
       <Route path="/manager/systems/:systemId" element={<M><SystemDetailPage /></M>} />

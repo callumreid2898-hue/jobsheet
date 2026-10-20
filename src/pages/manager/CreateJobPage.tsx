@@ -7,6 +7,8 @@ import { useCustomers } from '../../hooks/useCustomers';
 import { useSites } from '../../hooks/useSites';
 import { useSystems } from '../../hooks/useSystems';
 import { useProfiles } from '../../hooks/useProfiles';
+import { useJobs } from '../../hooks/useJobs';
+import { DEFAULT_DURATION_MINUTES, findClashes, fromMinutes, jobInterval } from '../../lib/planner';
 import type { Job, TemplateId, JobType } from '../../types';
 
 const templateOptions: { value: TemplateId; label: string }[] = [
@@ -38,8 +40,24 @@ export function CreateJobPage() {
     assigned_engineer_id: searchParams.get('engineer') ?? '',
     scheduled_date: searchParams.get('date') ?? localISODate(),
     scheduled_time: searchParams.get('time') ?? '',
+    duration_minutes: String(DEFAULT_DURATION_MINUTES),
     notes: '',
   });
+  const { jobs: sameDayJobs } = useJobs({ date: form.scheduled_date || undefined });
+
+  // Overlaps with the chosen engineer's other jobs that day
+  const draft = {
+    id: '',
+    assigned_engineer_id: form.assigned_engineer_id || null,
+    scheduled_date: form.scheduled_date,
+    scheduled_time: form.scheduled_time || null,
+    duration_minutes: Number(form.duration_minutes) || null,
+  };
+  const clashes = findClashes(draft, sameDayJobs);
+  const clashText = clashes.map(j => {
+    const [start, end] = jobInterval(j)!;
+    return `${fromMinutes(start)}–${fromMinutes(end)}`;
+  }).join(', ');
 
   const filteredSites = form.customer_id
     ? sites.filter(s => s.customer_id === form.customer_id)
@@ -51,6 +69,7 @@ export function CreateJobPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!profile) return;
+    if (clashes.length > 0 && !window.confirm(`This overlaps the engineer's other job${clashes.length > 1 ? 's' : ''} at ${clashText}. Create it anyway?`)) return;
     setSaving(true);
     const job: Job = {
       id: crypto.randomUUID(),
@@ -62,6 +81,7 @@ export function CreateJobPage() {
       assigned_engineer_id: form.assigned_engineer_id || null,
       scheduled_date: form.scheduled_date,
       scheduled_time: form.scheduled_time || null,
+      duration_minutes: Number(form.duration_minutes) || null,
       status: form.assigned_engineer_id ? 'scheduled' : 'unassigned',
       notes: form.notes || null,
       travelling_at: null,
@@ -125,7 +145,16 @@ export function CreateJobPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
             <input type="time" value={form.scheduled_time} onChange={e => setForm(f => ({...f, scheduled_time: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
           </div>
+          <div className="w-28">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Minutes</label>
+            <input type="number" min={15} step={15} value={form.duration_minutes} onChange={e => setForm(f => ({...f, duration_minutes: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" aria-label="Duration in minutes" />
+          </div>
         </div>
+        {clashes.length > 0 && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2" role="alert">
+            Overlaps this engineer's other job{clashes.length > 1 ? 's' : ''} at {clashText}.
+          </p>
+        )}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Assign engineer</label>
           <select value={form.assigned_engineer_id} onChange={e => setForm(f => ({...f, assigned_engineer_id: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">

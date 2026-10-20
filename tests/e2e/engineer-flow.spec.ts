@@ -1,23 +1,10 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { test, expect, type Page } from '@playwright/test';
+import { fakeSupabase, signIn as signInAs, today, type Row } from './fakeSupabase';
 
 /**
- * Engineer path from Today to submit, against an in-memory fake of Supabase's
- * REST/RPC/auth/storage endpoints. No real project is contacted.
+ * Engineer path from Today to submit, against an in-memory fake of Supabase
+ * (tests/e2e/fakeSupabase.ts). No real project is contacted.
  */
-
-function supabaseUrl(): string {
-  if (process.env.VITE_SUPABASE_URL) return process.env.VITE_SUPABASE_URL;
-  const env = readFileSync('.env.local', 'utf8');
-  const m = env.match(/^VITE_SUPABASE_URL=(.+)$/m);
-  if (!m) throw new Error('VITE_SUPABASE_URL not set');
-  return m[1].trim();
-}
-
-const SB_URL = supabaseUrl();
-const STORAGE_KEY = `sb-${new URL(SB_URL).hostname.split('.')[0]}-auth-token`;
-
-const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
 
 const USER_ID = '00000000-0000-4000-8000-0000000000e1';
 const PROFILE_ID = '00000000-0000-4000-8000-0000000000p1'.replace('p', 'a');
@@ -26,7 +13,6 @@ const SITE_ID = '00000000-0000-4000-8000-0000000000s1'.replace('s', 'b');
 const CUSTOMER_ID = '00000000-0000-4000-8000-0000000000d1';
 const JOB_ID = '00000000-0000-4000-8000-0000000000f1';
 
-type Row = Record<string, unknown>;
 
 function fixtures(): Record<string, Row[]> {
   return {
@@ -48,102 +34,13 @@ function fixtures(): Record<string, Row[]> {
   };
 }
 
-interface Write { method: string; table: string; body: unknown; prefer: string }
-interface Upload { bucket: string; path: string; body: string }
-
-/** A small stateful PostgREST fake: eq filters, single-object Accept, upsert by id, PATCH, set_job_status. */
-async function fakeSupabase(page: Page) {
-  const db = fixtures();
-  const writes: Write[] = [];
-  const uploads: Upload[] = [];
-
-  const filterRows = (rows: Row[], params: URLSearchParams) => rows.filter(r =>
-    [...params.entries()].every(([k, v]) => !v.startsWith('eq.') || String(r[k]) === v.slice(3)));
-
-  await page.route(`${SB_URL}/**`, async (route: Route) => {
-    const req = route.request();
-    const url = new URL(req.url());
-    const path = url.pathname;
-    const json = (status: number, body: unknown) =>
-      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-
-    if (path.startsWith('/auth/v1/')) return json(200, {});
-    // Uploads: POST /storage/v1/object/{bucket}/{path}. Downloads/signing aren't needed (files are still local).
-    const upload = path.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/);
-    if (upload && req.method() === 'POST') {
-      uploads.push({ bucket: upload[1], path: decodeURIComponent(upload[2]), body: (req.postDataBuffer() ?? Buffer.alloc(0)).toString('latin1') });
-      return json(200, { Key: `${upload[1]}/${upload[2]}` });
-    }
-    if (path.startsWith('/storage/v1/')) return json(400, { error: 'not found', message: 'Object not found' });
-
-    if (path === '/rest/v1/rpc/set_job_status') {
-      const { p_job_id, p_status } = req.postDataJSON();
-      writes.push({ method: 'RPC', table: 'set_job_status', body: { p_job_id, p_status }, prefer: '' });
-      const job = db.jobs.find(j => j.id === p_job_id)!;
-      job.status = p_status;
-      return json(200, job);
-    }
-
-    const table = path.replace('/rest/v1/', '');
-    const rows = (db[table] ??= []);
-    const method = req.method();
-
-    if (method === 'GET' || method === 'HEAD') {
-      const found = filterRows(rows, url.searchParams);
-      if ((req.headers()['accept'] ?? '').includes('vnd.pgrst.object')) {
-        return found.length === 1
-          ? json(200, found[0])
-          : json(406, { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' });
-      }
-      return json(200, found);
-    }
-
-    if (method === 'POST') {
-      const body = req.postDataJSON();
-      writes.push({ method, table, body, prefer: req.headers()['prefer'] ?? '' });
-      const ignore = (req.headers()['prefer'] ?? '').includes('ignore-duplicates');
-      for (const row of Array.isArray(body) ? body : [body]) {
-        const i = rows.findIndex(r => r.id === row.id);
-        if (i === -1) rows.push(row);
-        else if (!ignore) rows[i] = { ...rows[i], ...row };
-      }
-      return route.fulfill({ status: 201, body: '' });
-    }
-
-    if (method === 'PATCH') {
-      const body = req.postDataJSON();
-      writes.push({ method, table, body, prefer: '' });
-      for (const r of filterRows(rows, url.searchParams)) Object.assign(r, body);
-      return route.fulfill({ status: 204, body: '' });
-    }
-
-    return json(200, {});
-  });
-
-  return { db, writes, uploads };
-}
-
 // 2x2 red PNG
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGP4z8DAwMDAwMAAAA0ZAQDs3p7mAAAAAElFTkSuQmCC',
   'base64',
 );
 
-async function signIn(page: Page) {
-  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
-  const exp = Math.floor(Date.now() / 1000) + 3600;
-  const token = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: USER_ID, role: 'authenticated', exp })}.sig`;
-  const session = {
-    access_token: token, token_type: 'bearer', expires_in: 3600, expires_at: exp, refresh_token: 'refresh',
-    user: {
-      id: USER_ID, aud: 'authenticated', role: 'authenticated', email: 'eng@test.local',
-      app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
-    },
-  };
-  await page.addInitScript(([key, value]) => {
-    if (!localStorage.getItem(key)) localStorage.setItem(key, value);
-  }, [STORAGE_KEY, JSON.stringify(session)] as const);
-}
+const signIn = (page: Page) => signInAs(page, USER_ID, 'eng@test.local');
 
 /** The field wrapper that contains a given label */
 const field = (page: Page, label: string) =>
@@ -152,7 +49,7 @@ const field = (page: Page, label: string) =>
 test.use({ serviceWorkers: 'block', timezoneId: 'Europe/London' });
 
 test('engineer: travel, arrive, fill, submit once, cannot resubmit', async ({ page }) => {
-  const { db, writes, uploads } = await fakeSupabase(page);
+  const { db, writes, uploads } = await fakeSupabase(page, fixtures());
   await signIn(page);
   const rpcs = () => writes.filter(w => w.method === 'RPC').map(w => (w.body as Row).p_status);
 
