@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { fetchOneCached } from '../../lib/cachedQuery';
 import { useRemedials } from '../../hooks/useRemedials';
 import { useDevices } from '../../hooks/useDevices';
 import { RecordHeader } from '../../components/ui/RecordHeader';
@@ -65,19 +64,7 @@ export function SystemDetailPage() {
     if (!systemId) return;
     async function load() {
       setIsLoading(true);
-      let s: System | null = await db.systems.get(systemId!).catch(() => null) ?? null;
-      if (!s) {
-        const { data } = await supabase
-          .from('systems')
-          .select('*')
-          .eq('id', systemId)
-          .single();
-        if (data) {
-          s = data as System;
-          db.systems.put(s).catch(() => {});
-        }
-      }
-      setSystem(s);
+      setSystem(await fetchOneCached<System>('systems', systemId!));
       setIsLoading(false);
     }
     load();

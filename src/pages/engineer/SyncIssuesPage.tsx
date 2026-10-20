@@ -12,6 +12,18 @@ const TABLE_LABELS: Record<string, string> = {
   jobsheets: 'Jobsheet',
   remedials: 'Remedial',
   photos: 'Photo',
+  customers: 'Customer',
+  sites: 'Site',
+  systems: 'System',
+  devices: 'Device',
+  device_tests: 'Device test',
+  contracts: 'Contract',
+  contract_visits: 'Contract visit',
+  quotes: 'Quote',
+  quote_lines: 'Quote line',
+  invoices: 'Invoice',
+  invoice_lines: 'Invoice line',
+  companies: 'Company settings',
 };
 
 function describe(item: SyncQueueItem): string {

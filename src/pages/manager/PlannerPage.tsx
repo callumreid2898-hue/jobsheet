@@ -2,8 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
-import { db } from '../../lib/db';
-import { enqueueSync } from '../../offline/SyncQueue';
+import { writeRecord } from '../../lib/writeRecord';
 import { useJobs } from '../../hooks/useJobs';
 import { useProfiles } from '../../hooks/useProfiles';
 import { useSites } from '../../hooks/useSites';
@@ -535,12 +534,7 @@ export function PlannerPage() {
     if (newDate) update.scheduled_date = newDate;
     if (newTime !== null) update.scheduled_time = newTime;
 
-    await db.jobs.update(jobId, update).catch(() => {});
-    await enqueueSync({
-      table: 'jobs',
-      operation: 'update',
-      payload: { id: jobId, ...update } as Record<string, unknown>,
-    });
+    await writeRecord('jobs', 'update', { id: jobId, ...update });
   }
 
   // ─── Create job navigation ───────────────────────────────────────────────────

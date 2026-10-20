@@ -29,19 +29,21 @@ A mobile-first Progressive Web App for small UK fire and security installers to 
 
 ### Data Access Pattern
 
-All hooks follow a **Supabase-first, Dexie-fallback** pattern:
-1. Try to fetch from Supabase (online).
-2. On error/offline, fall back to local Dexie cache.
-3. On successful Supabase fetch, call `db.table.bulkPut(result)` to keep cache warm.
+Reads are **Supabase-first, Dexie-fallback**. Use the helpers instead of hand-writing it:
+- Lists: `useCachedQuery<T>({ table, eq, order })` (hooks in `src/hooks/` wrap it), or `fetchCached()` outside React (`src/lib/cachedQuery.ts`).
+- One row: `fetchOneCached<T>(table, id)`.
+- supabase-js returns `{ error }` instead of throwing, so a hand-written read must check `error` or its fallback never runs.
+- Fetched rows are cached through `mergeServerRows()`, so rows with unsent local changes keep the local copy, and locally created rows still show in lists.
 
-**Never** filter rows by `company_id` in React — this is handled entirely by RLS. The Supabase query just calls `.select('*')` and RLS returns only the caller's data.
+**Never** filter rows by `company_id` in React — this is handled entirely by RLS. The Supabase query just calls `.select('*')` and RLS returns only the caller's data. Dexie only holds the signed-in company (it's wiped on sign-out).
 
 ### Write Pattern (Online + Offline)
 
-All writes must:
-1. Write to Dexie immediately (optimistic).
-2. If online, write to Supabase in the same tick.
-3. If offline (or Supabase write fails), call `enqueueSync(...)` from `src/offline/SyncQueue.ts`.
+Use `writeRecord(table, op, row)` / `writeRecords([...])` from `src/lib/writeRecord.ts` (`op`: `insert`, `update` with a patch `{ id, ...fields }`, or `delete`):
+1. Dexie and the sync queue are written in one transaction.
+2. If online, the queue is flushed straight away, so writes to the same row stay in order.
+3. It returns `saved` / `queued` / `failed`, and toasts for queued or failed. Rejected items wait on the Sync screen (`/sync`, `/manager/sync`).
+In a `writeRecords` batch each write waits for the ones before it (parent before lines). The engineer jobsheet submit builds its queue items by hand (`FillJobsheetPage`).
 
 ### Form Engine
 

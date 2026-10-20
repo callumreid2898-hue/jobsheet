@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { fetchOneCached } from '../../lib/cachedQuery';
 import { useSites } from '../../hooks/useSites';
 import { useContracts } from '../../hooks/useContracts';
 import { RecordHeader } from '../../components/ui/RecordHeader';
@@ -71,19 +70,7 @@ export function CustomerDetailPage() {
     if (!customerId) return;
     async function load() {
       setIsLoading(true);
-      let c: Customer | null = await db.customers.get(customerId!).catch(() => null) ?? null;
-      if (!c) {
-        const { data } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('id', customerId)
-          .single();
-        if (data) {
-          c = data as Customer;
-          db.customers.put(c).catch(() => {});
-        }
-      }
-      setCustomer(c);
+      setCustomer(await fetchOneCached<Customer>('customers', customerId!));
       setIsLoading(false);
     }
     load();

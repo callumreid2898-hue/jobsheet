@@ -182,6 +182,18 @@ Tests: `tests/unit/jobFlow.test.ts` (transitions vs the RPC, BST/GMT dates, stab
 
 ## Batch 6 — Manager write pattern and offline reads (M) · C17 H7 M16 L4
 
+**Batch 6 result (2026-10-20), done locally:** all items below. Notes:
+- `writeRecord` doesn't write to Supabase directly. It writes Dexie and the queue in one transaction, then flushes at once (`flushNow()` also waits for a flush already running). That keeps the order behind earlier unsent writes to the same row, and the retry/error rules from Batch 3 apply.
+- Reads go through `fetchCached` / `fetchOneCached` / `useCachedQuery` (`src/lib/cachedQuery.ts`, `src/hooks/useCachedQuery.ts`). All 12 list hooks and every manager detail page use them. That also covers the "Dexie-vs-Supabase read pattern" row in the consolidation table.
+- `mergeServerRows` now works for any table. Given the query's filter, it adds unsynced local rows and drops locally edited rows that no longer match. So a site created offline shows in the Sites list straight away (C17's "online lists hide it").
+- Managers get the Sync screen at `/manager/sync`; the banner links to it. Discarding a rejected *insert* also removes its local-only row.
+- Global toasts (`src/lib/toast.ts`, `<GlobalToasts />` in both shells).
+- Import now queues `insert`, not `upsert` (fresh ids). The rest of the import fixes are Batch 12.
+- Small extras: CreateJob's default date and "mark paid" use `localISODate()` (H17 for those two). JobDetailPage reassign no longer writes twice. The scanner looks up `qr_code` server-first, with the cache as fallback.
+- Removed the unused `useJobsheet.ts` and `useJobLines.ts`.
+- Not done: Settings doesn't refresh the company name held in `AuthProvider` until reload. ReviewJobsheetPage (unrouted, deleted in Batch 7) still writes directly. Planner optimistic state is Batch 7.
+- Tests: `tests/unit/writeRecord.test.ts` (13): saved / rejected / network / offline, parent-child gating, same-row ordering, fetchCached fallback on a returned error, unsynced local rows in lists, filter drop, fetchOneCached, discard cleanup, and `useSites` falling back with a failing fetch.
+
 **Files:** new `src/lib/writeRecord.ts`, every hook in `src/hooks/*`, CreateSite / AddDevice / DeviceDetail / CreateContract / ContractDetail / CreateQuote / QuoteDetail / RemedialsList / CreateInvoice / InvoiceDetail / Settings pages.
 
 - `writeRecord(table, row | patch)`: write to Dexie, then to Supabase; on `error`, enqueue and show a toast.

@@ -82,6 +82,7 @@ export function AppRoutes() {
 
       {/* ── Manager dashboard & planner ────────────────────────── */}
       <Route path="/manager/dashboard" element={<M><DashboardPage /></M>} />
+      <Route path="/manager/sync" element={<M><SyncIssuesPage /></M>} />
       <Route path="/manager/planner" element={<M><PlannerPage /></M>} />
 
       {/* ── Manager jobs ───────────────────────────────────────── */}

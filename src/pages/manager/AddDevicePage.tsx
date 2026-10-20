@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { writeRecord } from '../../lib/writeRecord';
 import { useAuth } from '../../auth/AuthProvider';
 import type { Device } from '../../types';
 
@@ -39,8 +38,7 @@ export function AddDevicePage() {
       notes: form.notes || null,
       created_at: new Date().toISOString(),
     };
-    await db.devices.put(device).catch(() => {});
-    await supabase.from('devices').insert(device);
+    await writeRecord('devices', 'insert', { ...device });
     setSaving(false);
     navigate(`/manager/sites/${siteId}/devices/${device.id}`);
   }

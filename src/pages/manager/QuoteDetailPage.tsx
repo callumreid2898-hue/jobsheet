@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
-import { enqueueSync } from '../../offline/SyncQueue';
+import { fetchCached, fetchOneCached } from '../../lib/cachedQuery';
+import { writeRecord } from '../../lib/writeRecord';
 import { useAuth } from '../../auth/AuthProvider';
 import { Spinner } from '../../components/ui/Spinner';
 import type { Quote, QuoteLine, QuoteStatus, Site } from '../../types';
@@ -39,31 +38,14 @@ export function QuoteDetailPage() {
     if (!quoteId) return;
     setIsLoading(true);
     try {
-      let q: Quote | null = await db.quotes.get(quoteId).catch(() => null) ?? null;
-      if (!q) {
-        const { data } = await supabase.from('quotes').select('*').eq('id', quoteId).single();
-        if (data) { q = data as Quote; db.quotes.put(q).catch(() => {}); }
-      }
+      const q = await fetchOneCached<Quote>('quotes', quoteId);
       setQuote(q);
+      if (q?.site_id) setSite(await fetchOneCached<Site>('sites', q.site_id));
 
-      if (q?.site_id) {
-        let s: Site | null = await db.sites.get(q.site_id).catch(() => null) ?? null;
-        if (!s) {
-          const { data } = await supabase.from('sites').select('*').eq('id', q.site_id).single();
-          if (data) { s = data as Site; db.sites.put(s).catch(() => {}); }
-        }
-        setSite(s);
-      }
-
-      let ls: QuoteLine[] = [];
-      try {
-        const { data } = await supabase.from('quote_lines').select('*').eq('quote_id', quoteId).order('sort_order');
-        if (data) { ls = data as QuoteLine[]; db.quote_lines.bulkPut(ls).catch(() => {}); }
-      } catch {
-        ls = await db.quote_lines.where('quote_id').equals(quoteId).toArray().catch(() => []);
-        ls.sort((a, b) => a.sort_order - b.sort_order);
-      }
-      setLines(ls);
+      const { rows } = await fetchCached<QuoteLine>({
+        table: 'quote_lines', eq: { quote_id: quoteId }, order: { column: 'sort_order' },
+      });
+      setLines(rows);
     } finally {
       setIsLoading(false);
     }
@@ -75,17 +57,14 @@ export function QuoteDetailPage() {
     if (!quote || !quoteId) return;
     setUpdatingStatus(true);
     const now = new Date().toISOString();
-    await supabase.from('quotes').update({ status, updated_at: now }).eq('id', quoteId);
-    const updated = { ...quote, status, updated_at: now };
-    await db.quotes.put(updated).catch(() => {});
-    setQuote(updated);
+    setQuote({ ...quote, status, updated_at: now });
+    await writeRecord('quotes', 'update', { id: quoteId, status, updated_at: now });
     setUpdatingStatus(false);
   }
 
   async function deleteLine(line: QuoteLine) {
-    await supabase.from('quote_lines').delete().eq('id', line.id);
-    await db.quote_lines.delete(line.id).catch(() => {});
     setLines(prev => prev.filter(l => l.id !== line.id));
+    await writeRecord('quote_lines', 'delete', { id: line.id });
   }
 
   async function saveNewLine() {
@@ -103,9 +82,8 @@ export function QuoteDetailPage() {
       sort_order: lines.length,
       created_at: now,
     };
-    await db.quote_lines.put(line).catch(() => {});
-    await supabase.from('quote_lines').insert(line);
     setLines(prev => [...prev, line]);
+    await writeRecord('quote_lines', 'insert', { ...line });
     setNewLine({ description: '', quantity: '1', unit_price: '0.00', vat_rate: 0.20 });
     setAddingLine(false);
     setSavingLine(false);
@@ -121,11 +99,8 @@ export function QuoteDetailPage() {
 
     if (quote.status === 'draft') {
       const now = new Date().toISOString();
-      const updated = { ...quote, status: 'sent' as QuoteStatus, updated_at: now };
-      await db.quotes.put(updated).catch(() => {});
-      await supabase.from('quotes').update({ status: 'sent', updated_at: now }).eq('id', quoteId);
-      await enqueueSync({ table: 'quotes', operation: 'upsert', payload: updated as unknown as Record<string, unknown> });
-      setQuote(updated);
+      setQuote({ ...quote, status: 'sent', updated_at: now });
+      await writeRecord('quotes', 'update', { id: quoteId, status: 'sent', updated_at: now });
     }
     setSendingQuote(false);
   }

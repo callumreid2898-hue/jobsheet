@@ -62,8 +62,13 @@ export async function getVisibleQueue(): Promise<SyncQueueItem[]> {
  * Caches freshly fetched rows in Dexie and returns what to show. Rows with an
  * unsent local change keep the local copy, so a read racing the flush doesn't
  * undo an optimistic write.
+ *
+ * With `matches` (the query's filter), rows created or changed locally but not
+ * yet sent are added to the result if they match, and dropped if they no longer do.
  */
-export async function mergeServerRows<T extends { id: string }>(table: 'jobs', rows: T[]): Promise<T[]> {
+export async function mergeServerRows<T extends { id: string }>(
+  table: string, rows: T[], matches?: (row: T) => boolean,
+): Promise<T[]> {
   const prefix = `${table}:`;
   const queued = await db.sync_queue.where('entity_key').startsWith(prefix).toArray();
   const pending = new Set(queued.map(i => i.entity_key.slice(prefix.length)));
@@ -71,7 +76,11 @@ export async function mergeServerRows<T extends { id: string }>(table: 'jobs', r
     (await db.table(table).bulkGet([...pending]) as (T | undefined)[]).flatMap(r => (r ? [[r.id, r] as const] : [])),
   );
   await db.table(table).bulkPut(rows.filter(r => !pending.has(r.id)));
-  return rows.map(r => local.get(r.id) ?? r);
+  const merged = rows.map(r => local.get(r.id) ?? r);
+  if (!matches) return merged;
+  const onServer = new Set(rows.map(r => r.id));
+  const localOnly = [...local.values()].filter(r => !onServer.has(r.id));
+  return [...merged, ...localOnly].filter(matches);
 }
 
 async function updateQueueLength() {
@@ -170,12 +179,26 @@ function statusOf(err: unknown): number | undefined {
 // ─── Flush ───────────────────────────────────────────────────────────────────
 
 let rerunRequested = false;
+let currentFlush: Promise<unknown> | null = null;
 
-export async function flushQueue(): Promise<{ synced: number; failed: number }> {
+/** Flushes now, waiting for a flush that's already running first (so new items are included). */
+export async function flushNow(): Promise<void> {
+  if (currentFlush) await currentFlush.catch(() => {});
+  await flushQueue();
+}
+
+export function flushQueue(): Promise<{ synced: number; failed: number }> {
   if (state.isSyncing) {
     rerunRequested = true;
-    return { synced: 0, failed: 0 };
+    return Promise.resolve({ synced: 0, failed: 0 });
   }
+  const run = doFlush();
+  currentFlush = run;
+  run.finally(() => { if (currentFlush === run) currentFlush = null; }).catch(() => {});
+  return run;
+}
+
+async function doFlush(): Promise<{ synced: number; failed: number }> {
   const userId = identity.userId;
   if (!navigator.onLine || !userId) {
     await updateQueueLength();
@@ -262,8 +285,16 @@ export async function retryItem(id: string) {
   await flushQueue();
 }
 
+/**
+ * Drops an item. A discarded insert also removes the local row, which never
+ * reached the server; a discarded update is replaced by the server copy on the next read.
+ */
 export async function discardItem(id: string) {
+  const item = await db.sync_queue.get(id);
   await db.sync_queue.delete(id);
+  if (item?.operation === 'insert' && db.tables.some(t => t.name === item.table)) {
+    await db.table(item.table).delete(item.payload['id'] as string).catch(() => {});
+  }
   await updateQueueLength();
 }
 

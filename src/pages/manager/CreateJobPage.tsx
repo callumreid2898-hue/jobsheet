@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { writeRecord } from '../../lib/writeRecord';
+import { localISODate } from '../../lib/dates';
 import { useAuth } from '../../auth/AuthProvider';
 import { useCustomers } from '../../hooks/useCustomers';
 import { useSites } from '../../hooks/useSites';
@@ -36,7 +36,7 @@ export function CreateJobPage() {
     type: 'ppm_service' as JobType,
     template_id: 'fire_alarm_service' as TemplateId,
     assigned_engineer_id: searchParams.get('engineer') ?? '',
-    scheduled_date: searchParams.get('date') ?? new Date().toISOString().split('T')[0],
+    scheduled_date: searchParams.get('date') ?? localISODate(),
     scheduled_time: searchParams.get('time') ?? '',
     notes: '',
   });
@@ -69,8 +69,7 @@ export function CreateJobPage() {
       completed_at: null,
       created_at: new Date().toISOString(),
     };
-    await db.jobs.put(job).catch(() => {});
-    await supabase.from('jobs').insert(job);
+    await writeRecord('jobs', 'insert', { ...job });
     setSaving(false);
     navigate('/manager/jobs');
   }

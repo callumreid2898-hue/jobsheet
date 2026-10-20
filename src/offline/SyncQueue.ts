@@ -19,8 +19,9 @@ export async function enqueueSync(item: {
   entity_id?: string;
   /** Entity keys (see syncKey) that must reach the server first. */
   depends_on?: string[];
-}): Promise<void> {
+}): Promise<string> {
   const { userId, companyId } = getSyncIdentity();
+  const id = crypto.randomUUID();
   const entityId = item.entity_id
     ?? (item.payload['id'] as string | undefined)
     ?? (item.payload['blob_key'] as string | undefined)
@@ -29,7 +30,7 @@ export async function enqueueSync(item: {
   await db.transaction('rw', db.sync_queue, async () => {
     const last = await db.sync_queue.orderBy('seq').last();
     await db.sync_queue.add({
-      id: crypto.randomUUID(),
+      id,
       table: item.table,
       operation: item.operation,
       payload: item.payload,
@@ -47,10 +48,11 @@ export async function enqueueSync(item: {
   });
 
   scheduleFlush();
+  return id;
 }
 
 /** Job status changes go through the set_job_status RPC (engineers can't update jobs directly). */
-export function enqueueJobStatus(jobId: string, status: JobStatus, dependsOn: string[] = []): Promise<void> {
+export function enqueueJobStatus(jobId: string, status: JobStatus, dependsOn: string[] = []): Promise<string> {
   return enqueueSync({
     table: 'jobs',
     operation: 'rpc',

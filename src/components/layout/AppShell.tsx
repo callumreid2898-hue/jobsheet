@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { BottomNav } from './BottomNav';
 import { OfficeShell } from './OfficeShell';
 import { SyncStatusBanner } from '../../offline/SyncStatusBanner';
+import { GlobalToasts } from '../ui/GlobalToasts';
 
 interface AppShellProps {
   children: ReactNode;
@@ -55,6 +56,7 @@ export function AppShell({ children }: AppShellProps) {
           {children}
         </main>
         {showBottomNav && <BottomNav />}
+        <GlobalToasts />
       </div>
     </>
   );

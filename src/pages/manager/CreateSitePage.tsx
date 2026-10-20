@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { writeRecords, type Write } from '../../lib/writeRecord';
 import { useAuth } from '../../auth/AuthProvider';
 import { useCustomers } from '../../hooks/useCustomers';
 import type { Customer, Site, System, SystemType } from '../../types';
@@ -30,6 +29,7 @@ export function CreateSitePage() {
     if (!profile) return;
     setSaving(true);
 
+    const writes: Write[] = [];
     let customerId = form.customer_id;
     if (!customerId && form.new_customer_name) {
       const newCustomer: Customer = {
@@ -39,8 +39,7 @@ export function CreateSitePage() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      await db.customers.put(newCustomer).catch(() => {});
-      await supabase.from('customers').insert(newCustomer);
+      writes.push({ table: 'customers', op: 'insert', row: { ...newCustomer } });
       customerId = newCustomer.id;
     }
 
@@ -51,8 +50,7 @@ export function CreateSitePage() {
       arc_name: null, arc_account: null, police_urn: null, hazards: null, keyholders: [],
       created_at: new Date().toISOString(),
     };
-    await db.sites.put(site).catch(() => {});
-    await supabase.from('sites').insert(site);
+    writes.push({ table: 'sites', op: 'insert', row: { ...site } });
 
     if (form.system_type) {
       const system: System = {
@@ -62,10 +60,11 @@ export function CreateSitePage() {
         zones_count: null, loops_count: null, num_cameras: null, retention_days: null, grade: null,
         created_at: new Date().toISOString(),
       };
-      await db.systems.put(system).catch(() => {});
-      await supabase.from('systems').insert(system);
+      writes.push({ table: 'systems', op: 'insert', row: { ...system } });
     }
 
+    // Kept on the device and queued if the server can't take it (writeRecords shows why)
+    await writeRecords(writes);
     setSaving(false);
     navigate('/manager/sites');
   }

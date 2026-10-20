@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { writeRecords } from '../../lib/writeRecord';
 import { useAuth } from '../../auth/AuthProvider';
 import { useSites } from '../../hooks/useSites';
 import type { Quote, QuoteLine } from '../../types';
@@ -87,12 +86,10 @@ export function CreateQuotePage() {
         created_at: now,
       }));
 
-    await db.quotes.put(quote).catch(() => {});
-    await supabase.from('quotes').insert(quote);
-    if (quoteLines.length > 0) {
-      await db.quote_lines.bulkPut(quoteLines).catch(() => {});
-      await supabase.from('quote_lines').insert(quoteLines);
-    }
+    await writeRecords([
+      { table: 'quotes', op: 'insert', row: { ...quote } },
+      ...quoteLines.map(l => ({ table: 'quote_lines', op: 'insert' as const, row: { ...l } })),
+    ]);
 
     setSaving(false);
     navigate(`/manager/quotes/${quote.id}`);

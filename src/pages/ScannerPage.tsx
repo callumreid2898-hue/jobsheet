@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
-import { supabase } from '../lib/supabaseClient';
-import { db } from '../lib/db';
+import { fetchCached } from '../lib/cachedQuery';
 import type { Device } from '../types';
 
 export function ScannerPage() {
@@ -25,24 +24,8 @@ export function ScannerPage() {
             setScanning(false);
             setResult(decodedText);
 
-            // Look up device by qr_code — try Dexie first
-            let found: Device | undefined = await db.devices
-              .where('qr_code')
-              .equals(decodedText)
-              .first()
-              .catch(() => undefined);
-
-            if (!found) {
-              const { data } = await supabase
-                .from('devices')
-                .select('*')
-                .eq('qr_code', decodedText)
-                .single();
-              if (data) {
-                found = data as Device;
-                db.devices.put(found).catch(() => {});
-              }
-            }
+            // Look up device by qr_code (works offline from the cache)
+            const found = (await fetchCached<Device>({ table: 'devices', eq: { qr_code: decodedText } })).rows[0];
 
             if (found) {
               setDevice(found);

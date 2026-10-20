@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { db } from '../../lib/db';
-import { supabase } from '../../lib/supabaseClient';
+import { fetchCached } from '../../lib/cachedQuery';
+import { writeRecords } from '../../lib/writeRecord';
 import { useAuth } from '../../auth/AuthProvider';
 import { useCustomers } from '../../hooks/useCustomers';
 import { useSites } from '../../hooks/useSites';
@@ -127,25 +128,9 @@ export function CreateInvoicePage() {
     if (!quoteId || !profile) return;
     setImportingLines(true);
     try {
-      let qLines: QuoteLine[] = [];
-      try {
-        const { data } = await supabase
-          .from('quote_lines')
-          .select('*')
-          .eq('quote_id', quoteId)
-          .order('sort_order');
-        if (data) {
-          qLines = data as QuoteLine[];
-          db.quote_lines.bulkPut(qLines).catch(() => {});
-        }
-      } catch {
-        qLines = await db.quote_lines
-          .where('quote_id')
-          .equals(quoteId)
-          .toArray()
-          .catch(() => []);
-        qLines.sort((a, b) => a.sort_order - b.sort_order);
-      }
+      const { rows: qLines } = await fetchCached<QuoteLine>({
+        table: 'quote_lines', eq: { quote_id: quoteId }, order: { column: 'sort_order' },
+      });
 
       if (qLines.length === 0) {
         addToast('No lines found on that quote.', 'warning');
@@ -224,15 +209,11 @@ export function CreateInvoicePage() {
           created_at: now,
         }));
 
-      // Write to Dexie immediately (optimistic)
-      await db.invoices.put(invoice);
-      await db.invoice_lines.bulkPut(invoiceLines);
-
-      // Push to Supabase
-      await supabase.from('invoices').insert(invoice);
-      if (invoiceLines.length > 0) {
-        await supabase.from('invoice_lines').insert(invoiceLines);
-      }
+      // Kept on the device and queued if the server can't take it (writeRecords shows why)
+      await writeRecords([
+        { table: 'invoices', op: 'insert', row: { ...invoice } },
+        ...invoiceLines.map(l => ({ table: 'invoice_lines', op: 'insert' as const, row: { ...l } })),
+      ]);
 
       navigate(`/manager/invoices/${invoiceId}`);
     } catch (err) {

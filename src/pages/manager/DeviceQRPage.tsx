@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import QRCode from 'react-qr-code';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { fetchOneCached } from '../../lib/cachedQuery';
 import { Spinner } from '../../components/ui/Spinner';
 import type { Device } from '../../types';
 
@@ -14,15 +13,7 @@ export function DeviceQRPage() {
   useEffect(() => {
     if (!deviceId) return;
     async function load() {
-      let found: Device | undefined = await db.devices.get(deviceId!).catch(() => undefined);
-      if (!found) {
-        const { data } = await supabase.from('devices').select('*').eq('id', deviceId).single();
-        if (data) {
-          found = data as Device;
-          db.devices.put(found).catch(() => {});
-        }
-      }
-      setDevice(found ?? null);
+      setDevice(await fetchOneCached<Device>('devices', deviceId!));
       setIsLoading(false);
     }
     load().catch(() => setIsLoading(false));

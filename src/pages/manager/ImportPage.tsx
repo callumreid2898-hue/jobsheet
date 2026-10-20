@@ -293,7 +293,7 @@ export function ImportPage() {
         updated_at:      new Date().toISOString(),
       };
       await db.customers.put(customer);
-      await enqueueSync({ table: 'customers', operation: 'upsert', payload: customer as unknown as Record<string, unknown> });
+      await enqueueSync({ table: 'customers', operation: 'insert', payload: customer as unknown as Record<string, unknown> });
       count++;
     }
     addToast(`Imported ${count} customer${count !== 1 ? 's' : ''} successfully.`, 'success');
@@ -331,7 +331,7 @@ export function ImportPage() {
         created_at:    new Date().toISOString(),
       };
       await db.sites.put(site);
-      await enqueueSync({ table: 'sites', operation: 'upsert', payload: site as unknown as Record<string, unknown> });
+      await enqueueSync({ table: 'sites', operation: 'insert', payload: site as unknown as Record<string, unknown> });
       count++;
     }
     addToast(`Imported ${count} site${count !== 1 ? 's' : ''} successfully.`, 'success');
@@ -370,7 +370,7 @@ export function ImportPage() {
         created_at:     new Date().toISOString(),
       };
       await db.systems.put(system);
-      await enqueueSync({ table: 'systems', operation: 'upsert', payload: system as unknown as Record<string, unknown> });
+      await enqueueSync({ table: 'systems', operation: 'insert', payload: system as unknown as Record<string, unknown> });
       count++;
     }
     addToast(`Imported ${count} system${count !== 1 ? 's' : ''} successfully.`, 'success');
@@ -408,7 +408,7 @@ export function ImportPage() {
         created_at:     new Date().toISOString(),
       };
       await db.devices.put(device);
-      await enqueueSync({ table: 'devices', operation: 'upsert', payload: device as unknown as Record<string, unknown> });
+      await enqueueSync({ table: 'devices', operation: 'insert', payload: device as unknown as Record<string, unknown> });
       count++;
     }
     addToast(`Imported ${count} device${count !== 1 ? 's' : ''} successfully.`, 'success');

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { fetchOneCached } from '../../lib/cachedQuery';
 import { useDevices } from '../../hooks/useDevices';
 import { Spinner } from '../../components/ui/Spinner';
 import type { Site } from '../../types';
@@ -19,10 +18,7 @@ export function SiteDevicesPage() {
   useEffect(() => {
     if (!siteId) return;
     async function loadSite() {
-      const local = await db.sites.get(siteId!).catch(() => null);
-      if (local) { setSite(local); return; }
-      const { data } = await supabase.from('sites').select('*').eq('id', siteId!).single();
-      if (data) setSite(data as Site);
+      setSite(await fetchOneCached<Site>('sites', siteId!));
     }
     loadSite();
   }, [siteId]);

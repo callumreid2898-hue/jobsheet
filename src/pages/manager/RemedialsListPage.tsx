@@ -3,8 +3,7 @@ import { useRemedials } from '../../hooks/useRemedials';
 import { useSites } from '../../hooks/useSites';
 import { RemedialRow } from '../../components/RemedialRow';
 import { Spinner } from '../../components/ui/Spinner';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { writeRecord } from '../../lib/writeRecord';
 import type { Remedial, RemedialStatus } from '../../types';
 
 export function RemedialsListPage() {
@@ -14,9 +13,7 @@ export function RemedialsListPage() {
   const siteMap = new Map(sites.map(s => [s.id, s]));
 
   async function updateStatus(remedial: Remedial, status: RemedialStatus) {
-    const updated: Remedial = { ...remedial, status, updated_at: new Date().toISOString() };
-    await db.remedials.put(updated).catch(() => {});
-    await supabase.from('remedials').update({ status }).eq('id', remedial.id);
+    await writeRecord('remedials', 'update', { id: remedial.id, status, updated_at: new Date().toISOString() });
     refetch();
   }
 

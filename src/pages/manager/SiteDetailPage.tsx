@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { fetchOneCached } from '../../lib/cachedQuery';
 import { useSystems } from '../../hooks/useSystems';
 import { useJobs } from '../../hooks/useJobs';
 import { useRemedials } from '../../hooks/useRemedials';
@@ -83,27 +82,9 @@ export function SiteDetailPage() {
     if (!siteId) return;
     async function load() {
       setIsLoading(true);
-      let s: Site | null = await db.sites.get(siteId!).catch(() => null) ?? null;
-      if (!s) {
-        const { data } = await supabase.from('sites').select('*').eq('id', siteId).single();
-        if (data) {
-          s = data as Site;
-          db.sites.put(s).catch(() => {});
-        }
-      }
+      const s = await fetchOneCached<Site>('sites', siteId!);
       setSite(s);
-
-      if (s?.customer_id) {
-        let c: Customer | null = await db.customers.get(s.customer_id).catch(() => null) ?? null;
-        if (!c) {
-          const { data } = await supabase.from('customers').select('*').eq('id', s.customer_id).single();
-          if (data) {
-            c = data as Customer;
-            db.customers.put(c).catch(() => {});
-          }
-        }
-        setCustomer(c);
-      }
+      if (s?.customer_id) setCustomer(await fetchOneCached<Customer>('customers', s.customer_id));
 
       setIsLoading(false);
     }

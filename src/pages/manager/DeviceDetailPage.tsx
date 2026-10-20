@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { fetchCached, fetchOneCached } from '../../lib/cachedQuery';
+import { writeRecord } from '../../lib/writeRecord';
 import { useAuth } from '../../auth/AuthProvider';
 import { Spinner } from '../../components/ui/Spinner';
 import type { Device, DeviceTest, DeviceTestResult } from '../../types';
@@ -44,10 +44,7 @@ export function DeviceDetailPage() {
     if (!deviceId) return;
     async function loadDevice() {
       setLoadingDevice(true);
-      const local = await db.devices.get(deviceId!).catch(() => null);
-      if (local) { setDevice(local); setLoadingDevice(false); return; }
-      const { data } = await supabase.from('devices').select('*').eq('id', deviceId!).single();
-      if (data) setDevice(data as Device);
+      setDevice(await fetchOneCached<Device>('devices', deviceId!));
       setLoadingDevice(false);
     }
     loadDevice();
@@ -56,23 +53,11 @@ export function DeviceDetailPage() {
   async function loadTests() {
     if (!deviceId) return;
     setLoadingTests(true);
-    try {
-      const { data } = await supabase
-        .from('device_tests')
-        .select('*')
-        .eq('device_id', deviceId)
-        .order('tested_at', { ascending: false });
-      if (data) {
-        setTests(data as DeviceTest[]);
-        db.device_tests.bulkPut(data as DeviceTest[]).catch(() => {});
-      }
-    } catch {
-      const local = await db.device_tests.where('device_id').equals(deviceId).toArray().catch(() => [] as DeviceTest[]);
-      local.sort((a, b) => b.tested_at.localeCompare(a.tested_at));
-      setTests(local);
-    } finally {
-      setLoadingTests(false);
-    }
+    const { rows } = await fetchCached<DeviceTest>({
+      table: 'device_tests', eq: { device_id: deviceId }, order: { column: 'tested_at', ascending: false },
+    });
+    setTests(rows);
+    setLoadingTests(false);
   }
 
   useEffect(() => { loadTests(); }, [deviceId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -90,8 +75,7 @@ export function DeviceDetailPage() {
       note: testNote || null,
       tested_at: new Date().toISOString(),
     };
-    await db.device_tests.put(test).catch(() => {});
-    await supabase.from('device_tests').insert(test);
+    await writeRecord('device_tests', 'insert', { ...test });
     setSaving(false);
     setShowForm(false);
     setTestResult('pass');

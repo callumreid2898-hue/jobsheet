@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { fetchCached, fetchOneCached } from '../../lib/cachedQuery';
+import { writeRecord } from '../../lib/writeRecord';
 import { useAuth } from '../../auth/AuthProvider';
 import { Spinner } from '../../components/ui/Spinner';
 import type { Contract, ContractVisit, ContractStatus, ContractVisitStatus, Site } from '../../types';
@@ -59,45 +59,19 @@ export function ContractDetailPage() {
 
   async function loadVisits() {
     if (!contractId) return;
-    try {
-      const { data } = await supabase
-        .from('contract_visits')
-        .select('*')
-        .eq('contract_id', contractId)
-        .order('scheduled_date', { ascending: false });
-      if (data) {
-        setVisits(data as ContractVisit[]);
-        db.contract_visits.bulkPut(data as ContractVisit[]).catch(() => {});
-      }
-    } catch {
-      const d = await db.contract_visits
-        .where('contract_id').equals(contractId)
-        .toArray()
-        .catch(() => [] as ContractVisit[]);
-      setVisits(d.sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date)));
-    }
+    const { rows } = await fetchCached<ContractVisit>({
+      table: 'contract_visits', eq: { contract_id: contractId }, order: { column: 'scheduled_date', ascending: false },
+    });
+    setVisits(rows);
   }
 
   useEffect(() => {
     if (!contractId) return;
     async function init() {
       setIsLoading(true);
-      // Load contract
-      let c: Contract | null = await db.contracts.get(contractId!).catch(() => null) ?? null;
-      if (!c) {
-        const { data } = await supabase.from('contracts').select('*').eq('id', contractId).single();
-        if (data) { c = data as Contract; db.contracts.put(c).catch(() => {}); }
-      }
+      const c = await fetchOneCached<Contract>('contracts', contractId!);
       setContract(c);
-      // Load site
-      if (c?.site_id) {
-        let s: Site | null = await db.sites.get(c.site_id).catch(() => null) ?? null;
-        if (!s) {
-          const { data } = await supabase.from('sites').select('*').eq('id', c.site_id).single();
-          if (data) { s = data as Site; db.sites.put(s).catch(() => {}); }
-        }
-        setSite(s);
-      }
+      if (c?.site_id) setSite(await fetchOneCached<Site>('sites', c.site_id));
       await loadVisits();
       setIsLoading(false);
     }
@@ -108,9 +82,8 @@ export function ContractDetailPage() {
     if (!contract) return;
     const now = new Date().toISOString();
     const updated = { ...contract, status, updated_at: now };
-    await db.contracts.put(updated).catch(() => {});
-    await supabase.from('contracts').update({ status, updated_at: now }).eq('id', contract.id);
     setContract(updated);
+    await writeRecord('contracts', 'update', { id: contract.id, status, updated_at: now });
   }
 
   async function handleAddVisit(e: React.FormEvent) {
@@ -126,8 +99,7 @@ export function ContractDetailPage() {
       status: 'pending',
       created_at: new Date().toISOString(),
     };
-    await db.contract_visits.put(visit).catch(() => {});
-    await supabase.from('contract_visits').insert(visit);
+    await writeRecord('contract_visits', 'insert', { ...visit });
     setVisitDate('');
     setAddingVisit(false);
     setSavingVisit(false);

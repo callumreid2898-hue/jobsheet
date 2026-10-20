@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db } from '../../lib/db';
-import { supabase } from '../../lib/supabaseClient';
-import { enqueueSync } from '../../offline/SyncQueue';
+import { fetchOneCached } from '../../lib/cachedQuery';
+import { writeRecord } from '../../lib/writeRecord';
+import { localISODate } from '../../lib/dates';
 import { useInvoiceLines } from '../../hooks/useInvoiceLines';
 import { RecordHeader } from '../../components/ui/RecordHeader';
 import { Tabs, useActiveTab } from '../../components/ui/Tabs';
@@ -55,90 +55,20 @@ export function InvoiceDetailPage() {
     (async () => {
       setIsLoading(true);
       try {
-        // Invoice
-        let inv: Invoice | null =
-          (await db.invoices.get(invoiceId).catch(() => null)) ?? null;
-        if (!inv) {
-          const { data } = await supabase
-            .from('invoices')
-            .select('*')
-            .eq('id', invoiceId)
-            .single();
-          if (data) {
-            inv = data as Invoice;
-            db.invoices.put(inv).catch(() => {});
-          }
-        }
+        const inv = await fetchOneCached<Invoice>('invoices', invoiceId);
         setInvoice(inv);
         if (!inv) return;
 
-        // Customer
-        let cust: Customer | null =
-          (await db.customers.get(inv.customer_id).catch(() => null)) ?? null;
-        if (!cust) {
-          const { data } = await supabase
-            .from('customers')
-            .select('*')
-            .eq('id', inv.customer_id)
-            .single();
-          if (data) {
-            cust = data as Customer;
-            db.customers.put(cust).catch(() => {});
-          }
-        }
+        const [cust, s, j, q] = await Promise.all([
+          fetchOneCached<Customer>('customers', inv.customer_id),
+          fetchOneCached<Site>('sites', inv.site_id),
+          inv.job_id ? fetchOneCached<Job>('jobs', inv.job_id) : null,
+          inv.quote_id ? fetchOneCached<Quote>('quotes', inv.quote_id) : null,
+        ]);
         setCustomer(cust);
-
-        // Site
-        let s: Site | null =
-          (await db.sites.get(inv.site_id).catch(() => null)) ?? null;
-        if (!s) {
-          const { data } = await supabase
-            .from('sites')
-            .select('*')
-            .eq('id', inv.site_id)
-            .single();
-          if (data) {
-            s = data as Site;
-            db.sites.put(s).catch(() => {});
-          }
-        }
         setSite(s);
-
-        // Job (optional)
-        if (inv.job_id) {
-          let j: Job | null =
-            (await db.jobs.get(inv.job_id).catch(() => null)) ?? null;
-          if (!j) {
-            const { data } = await supabase
-              .from('jobs')
-              .select('*')
-              .eq('id', inv.job_id)
-              .single();
-            if (data) {
-              j = data as Job;
-              db.jobs.put(j).catch(() => {});
-            }
-          }
-          setJob(j);
-        }
-
-        // Quote (optional)
-        if (inv.quote_id) {
-          let q: Quote | null =
-            (await db.quotes.get(inv.quote_id).catch(() => null)) ?? null;
-          if (!q) {
-            const { data } = await supabase
-              .from('quotes')
-              .select('*')
-              .eq('id', inv.quote_id)
-              .single();
-            if (data) {
-              q = data as Quote;
-              db.quotes.put(q).catch(() => {});
-            }
-          }
-          setQuote(q);
-        }
+        setJob(j);
+        setQuote(q);
       } finally {
         setIsLoading(false);
       }
@@ -150,18 +80,13 @@ export function InvoiceDetailPage() {
     if (!invoice || !invoiceId) return;
     setTransitioning(true);
     const now = new Date().toISOString();
-    const updated: Invoice = { ...invoice, status: newStatus, updated_at: now, ...extra };
+    setInvoice({ ...invoice, status: newStatus, updated_at: now, ...extra });
     try {
-      await db.invoices.put(updated);
-      await enqueueSync({ table: 'invoices', operation: 'upsert', payload: updated as unknown as Record<string, unknown> });
-      await supabase
-        .from('invoices')
-        .update({ status: newStatus, updated_at: now, ...extra })
-        .eq('id', invoiceId);
-      setInvoice(updated);
-      addToast(`Invoice marked as ${newStatus}.`, 'success');
+      // writeRecord explains queued/rejected changes itself
+      const { status } = await writeRecord('invoices', 'update', { id: invoiceId, status: newStatus, updated_at: now, ...extra });
+      if (status === 'saved') addToast(`Invoice marked as ${newStatus}.`, 'success');
     } catch {
-      addToast('Failed to update status.', 'error');
+      addToast("Couldn't save the change on this device.", 'error');
     } finally {
       setTransitioning(false);
     }
@@ -172,7 +97,7 @@ export function InvoiceDetailPage() {
   }
 
   async function handleMarkPaid() {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localISODate();
     await updateStatus('paid', { paid_date: today });
   }
 
@@ -195,17 +120,7 @@ export function InvoiceDetailPage() {
 
     // Mark as sent if still draft
     if (invoice.status === 'draft') {
-      const now = new Date().toISOString();
-      const updated: Invoice = { ...invoice, status: 'sent', updated_at: now };
-      await db.invoices.put(updated);
-      await enqueueSync({ table: 'invoices', operation: 'upsert', payload: updated as unknown as Record<string, unknown> });
-      await supabase
-        .from('invoices')
-        .update({ status: 'sent', updated_at: now })
-        .eq('id', invoice.id)
-        .then(() => {}, () => {});
-      setInvoice(updated);
-      addToast('Invoice marked as sent.', 'success');
+      await updateStatus('sent');
     }
   }
 

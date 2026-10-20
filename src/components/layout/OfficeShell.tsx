@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { GlobalSearch } from '../ui/GlobalSearch';
 import { SyncStatusBanner } from '../../offline/SyncStatusBanner';
+import { GlobalToasts } from '../ui/GlobalToasts';
 
 interface OfficeShellProps {
   children: ReactNode;
@@ -26,6 +27,7 @@ export function OfficeShell({ children, notificationCount = 0 }: OfficeShellProp
 
       {/* Global search modal */}
       <GlobalSearch />
+      <GlobalToasts />
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { writeRecord } from '../../lib/writeRecord';
 import { useAuth } from '../../auth/AuthProvider';
 
 export function SettingsPage() {
@@ -14,12 +13,12 @@ export function SettingsPage() {
     e.preventDefault();
     if (!company || !profile) return;
     setSaving(true);
-    const updates = { name, accreditation_number: accreditation };
-    await db.companies.update(company.id, updates).catch(() => {});
-    await supabase.from('companies').update(updates).eq('id', company.id);
+    const { status } = await writeRecord('companies', 'update', { id: company.id, name, accreditation_number: accreditation });
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    if (status === 'saved') {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
   }
 
   return (

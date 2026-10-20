@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useOnline } from '../lib/useOnline';
 import { useSync } from './useSync';
 
 export function SyncStatusBanner() {
   const isOnline = useOnline();
   const { queueLength, isSyncing, failedCount, lastSyncedAt } = useSync();
+  const syncPath = useLocation().pathname.startsWith('/manager') ? '/manager/sync' : '/sync';
   const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
@@ -47,7 +48,7 @@ export function SyncStatusBanner() {
 
   return (
     <Link
-      to="/sync"
+      to={syncPath}
       className={`block ${bgColor} text-white text-xs font-medium text-center py-1.5 px-4 transition-all duration-300`}
       role="status"
       aria-live="polite"

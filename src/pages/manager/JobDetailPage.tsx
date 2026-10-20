@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
 import { useAuth } from '../../auth/AuthProvider';
 import { useProfiles } from '../../hooks/useProfiles';
 import { Tabs, useActiveTab } from '../../components/ui/Tabs';
@@ -10,7 +8,8 @@ import { StatusPill } from '../../components/ui/StatusPill';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { FormEngine } from '../../form-engine/FormEngine';
-import { enqueueSync } from '../../offline/SyncQueue';
+import { fetchCached, fetchOneCached } from '../../lib/cachedQuery';
+import { writeRecord } from '../../lib/writeRecord';
 import { openStorageFile } from '../../lib/media';
 import { useOnline } from '../../lib/useOnline';
 import type { Job, Jobsheet, Site, Customer, JobLine, Remedial } from '../../types';
@@ -77,41 +76,12 @@ export function JobDetailPage() {
 
     async function load() {
       try {
-        // Job
-        let j: Job | undefined;
-        const dexieJob = await db.jobs.get(jobId!).catch(() => undefined);
-        if (dexieJob) {
-          j = dexieJob;
-        } else {
-          const { data } = await supabase.from('jobs').select('*').eq('id', jobId!).single();
-          if (data) { j = data as Job; await db.jobs.put(j).catch(() => {}); }
-        }
-        if (!j) { setIsLoading(false); return; }
+        const j = await fetchOneCached<Job>('jobs', jobId!);
+        if (!j) return;
         setJob(j);
-
-        // Site
-        let s: Site | undefined;
-        const dexieSite = await db.sites.get(j.site_id).catch(() => undefined);
-        if (dexieSite) {
-          s = dexieSite;
-        } else {
-          const { data } = await supabase.from('sites').select('*').eq('id', j.site_id).single();
-          if (data) { s = data as Site; await db.sites.put(s).catch(() => {}); }
-        }
-        if (s) setSite(s);
-
-        // Customer
-        if (s) {
-          let c: Customer | undefined;
-          const dexieCust = await db.customers.get(s.customer_id).catch(() => undefined);
-          if (dexieCust) {
-            c = dexieCust;
-          } else {
-            const { data } = await supabase.from('customers').select('*').eq('id', s.customer_id).single();
-            if (data) { c = data as Customer; await db.customers.put(c).catch(() => {}); }
-          }
-          if (c) setCustomer(c);
-        }
+        const s = await fetchOneCached<Site>('sites', j.site_id);
+        setSite(s);
+        if (s) setCustomer(await fetchOneCached<Customer>('customers', s.customer_id));
       } finally {
         setIsLoading(false);
       }
@@ -128,14 +98,7 @@ export function JobDetailPage() {
     async function loadJobsheet() {
       try {
         // Server first: the PDF path is set after submission, by the engineer's device
-        let js: Jobsheet | undefined;
-        const { data, error } = await supabase.from('jobsheets').select('*').eq('job_id', jobId!).maybeSingle();
-        if (!error && data) {
-          js = data as Jobsheet;
-          await db.jobsheets.put(js).catch(() => {});
-        } else {
-          js = await db.jobsheets.where('job_id').equals(jobId!).first().catch(() => undefined);
-        }
+        const js = (await fetchCached<Jobsheet>({ table: 'jobsheets', eq: { job_id: jobId! } })).rows[0];
         if (!js) { setJsLoading(false); return; }
         setJobsheet(js);
 
@@ -157,20 +120,11 @@ export function JobDetailPage() {
     async function loadRemedials() {
       try {
         // Need jobsheet id first
-        const js = jobsheet ?? await db.jobsheets.where('job_id').equals(jobId!).first().catch(() => undefined);
+        const js = jobsheet ?? (await fetchCached<Jobsheet>({ table: 'jobsheets', eq: { job_id: jobId! } })).rows[0];
         if (!js) { setRemLoading(false); return; }
 
-        let rems: Remedial[] = [];
-        try {
-          const { data } = await supabase.from('remedials').select('*').eq('jobsheet_id', js.id);
-          if (data) {
-            rems = data as Remedial[];
-            await db.remedials.bulkPut(rems).catch(() => {});
-          }
-        } catch {
-          rems = await db.remedials.where('jobsheet_id').equals(js.id).toArray().catch(() => []);
-        }
-        setRemedials(rems);
+        const { rows } = await fetchCached<Remedial>({ table: 'remedials', eq: { jobsheet_id: js.id } });
+        setRemedials(rows);
       } finally {
         setRemLoading(false);
       }
@@ -186,18 +140,8 @@ export function JobDetailPage() {
 
     async function loadLines() {
       try {
-        let jls: JobLine[] = [];
-        try {
-          const { data } = await supabase.from('job_lines').select('*').eq('job_id', jobId!).order('sort_order');
-          if (data) {
-            jls = data as JobLine[];
-            await db.job_lines.bulkPut(jls).catch(() => {});
-          }
-        } catch {
-          jls = await db.job_lines.where('job_id').equals(jobId!).toArray().catch(() => []);
-          jls.sort((a, b) => a.sort_order - b.sort_order);
-        }
-        setLines(jls);
+        const { rows } = await fetchCached<JobLine>({ table: 'job_lines', eq: { job_id: jobId! }, order: { column: 'sort_order' } });
+        setLines(rows);
       } finally {
         setLinesLoading(false);
       }
@@ -211,15 +155,8 @@ export function JobDetailPage() {
     if (!job) return;
     setReassigning(true);
     const newVal = engineerId || null;
-    const updated: Job = { ...job, assigned_engineer_id: newVal };
-    setJob(updated);
-    await db.jobs.put(updated).catch(() => {});
-    await enqueueSync({ table: 'jobs', operation: 'update', payload: { id: job.id, assigned_engineer_id: newVal } });
-    try {
-      await supabase.from('jobs').update({ assigned_engineer_id: newVal }).eq('id', job.id);
-    } catch {
-      // already enqueued
-    }
+    setJob({ ...job, assigned_engineer_id: newVal });
+    await writeRecord('jobs', 'update', { id: job.id, assigned_engineer_id: newVal });
     setReassigning(false);
   }
 

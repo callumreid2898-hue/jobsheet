@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { db } from '../../lib/db';
+import { writeRecord } from '../../lib/writeRecord';
 import { useAuth } from '../../auth/AuthProvider';
 import { useSites } from '../../hooks/useSites';
 import type { Contract, SystemType, VisitFrequency } from '../../types';
@@ -56,8 +55,7 @@ export function CreateContractPage() {
       created_at: now,
       updated_at: now,
     };
-    await db.contracts.put(contract).catch(() => {});
-    await supabase.from('contracts').insert(contract);
+    await writeRecord('contracts', 'insert', { ...contract });
     setSaving(false);
     navigate(`/manager/contracts/${contract.id}`);
   }
