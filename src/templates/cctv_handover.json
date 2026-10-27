@@ -9,10 +9,10 @@
       "id": "site_details",
       "title": "Site Details",
       "fields": [
-        { "id": "site_name", "type": "text", "label": "Site Name" },
+        { "id": "site_name", "type": "text", "label": "Site Name", "prefill": "site" },
         { "id": "contract_no", "type": "text", "label": "Contract No" },
-        { "id": "date", "type": "text", "label": "Date" },
-        { "id": "commissioning_engineer", "type": "text", "label": "Commissioning Engineer" }
+        { "id": "date", "type": "text", "label": "Date", "prefill": "date" },
+        { "id": "commissioning_engineer", "type": "text", "label": "Commissioning Engineer", "prefill": "engineer_name" }
       ]
     },
     {
@@ -303,11 +303,11 @@
       "id": "sign_off",
       "title": "Sign-Off",
       "fields": [
-        { "id": "engineer_name", "type": "text", "label": "Engineer Name" },
+        { "id": "engineer_name", "type": "text", "label": "Engineer Name", "prefill": "engineer_name" },
         { "id": "engineer_signature", "type": "signature", "label": "Engineer Signature", "required": true },
         { "id": "customer_name", "type": "text", "label": "Customer Name" },
         { "id": "customer_signature", "type": "signature", "label": "Customer Signature" },
-        { "id": "sign_date", "type": "text", "label": "Date" }
+        { "id": "sign_date", "type": "text", "label": "Date", "prefill": "date" }
       ]
     }
   ]

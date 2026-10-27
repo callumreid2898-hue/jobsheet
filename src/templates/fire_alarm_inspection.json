@@ -9,12 +9,12 @@
       "id": "panel_details",
       "title": "Panel Details",
       "fields": [
-        { "id": "panel_make_model", "type": "text", "label": "Panel Make / Model" },
+        { "id": "panel_make_model", "type": "text", "label": "Panel Make / Model", "prefill": "system_make_model" },
         { "id": "sp203_cert_no", "type": "text", "label": "SP203 Certificate No" },
         { "id": "lps1014_cert_no", "type": "text", "label": "LPS1014 Certificate No" },
         { "id": "category", "type": "text", "label": "Category", "hint": "L / P / M" },
-        { "id": "loops_circuits", "type": "number", "label": "Loops / Circuits" },
-        { "id": "zones", "type": "number", "label": "Zones" },
+        { "id": "loops_circuits", "type": "number", "label": "Loops / Circuits", "prefill": "loops" },
+        { "id": "zones", "type": "number", "label": "Zones", "prefill": "zones" },
         { "id": "qty_smoke_detectors", "type": "number", "label": "Qty Smoke Detectors" },
         { "id": "qty_heat_detectors", "type": "number", "label": "Qty Heat Detectors" },
         { "id": "qty_sounders", "type": "number", "label": "Qty Sounders" },
@@ -273,11 +273,11 @@
           "type": "yes_no_na",
           "label": "Cause & Effect testing was allowed on this inspection"
         },
-        { "id": "engineer_name", "type": "text", "label": "Engineer Name" },
+        { "id": "engineer_name", "type": "text", "label": "Engineer Name", "prefill": "engineer_name" },
         { "id": "engineer_signature", "type": "signature", "label": "Engineer Signature", "required": true },
         { "id": "customer_name", "type": "text", "label": "Customer Name" },
         { "id": "customer_signature", "type": "signature", "label": "Customer Signature" },
-        { "id": "sign_date", "type": "text", "label": "Date" }
+        { "id": "sign_date", "type": "text", "label": "Date", "prefill": "date" }
       ]
     }
   ]

@@ -10,7 +10,9 @@ import { Spinner } from '../../components/ui/Spinner';
 import { FormEngine } from '../../form-engine/FormEngine';
 import { detectRemedials } from '../../form-engine/remedialDetector';
 import { collectMedia, MEDIA_BUCKET } from '../../lib/media';
-import type { Job, Jobsheet, AnswersMap, Photo, TemplateId } from '../../types';
+import { fetchOneCached } from '../../lib/cachedQuery';
+import { prefillAnswers, fillSubmitAnswers } from '../../lib/jobsheetPrefill';
+import type { Job, Jobsheet, AnswersMap, Photo, TemplateId, Site, Customer, System } from '../../types';
 import type { TemplateDef } from '../../templates/types';
 
 export function FillJobsheetPage() {
@@ -35,6 +37,9 @@ export function FillJobsheetPage() {
       }
       if (!j || cancelled) { setIsLoading(false); return; }
       setJob(j);
+      const job = j;
+
+      const tpl = (await import(`../../templates/${j.template_id}.json`)).default as TemplateDef;
 
       // Load or create jobsheet
       let js = await db.jobsheets.where('job_id').equals(j.id).first().catch(() => null);
@@ -45,6 +50,12 @@ export function FillJobsheetPage() {
           js = data as Jobsheet;
           await db.jobsheets.put(js).catch(() => {});
         } else {
+          // New jobsheet: start from what the job already says (site, call no., fault...)
+          const site = await fetchOneCached<Site>('sites', job.site_id);
+          const [customer, system] = await Promise.all([
+            site ? fetchOneCached<Customer>('customers', site.customer_id) : null,
+            job.system_id ? fetchOneCached<System>('systems', job.system_id) : null,
+          ]);
           // Create new local jobsheet. The id is derived from the job, so opening the
           // job offline on two devices (or after clearing data) can't create two.
           js = {
@@ -52,7 +63,7 @@ export function FillJobsheetPage() {
             job_id: j.id,
             company_id: j.company_id,
             template_id: j.template_id as TemplateId,
-            answers: {},
+            answers: prefillAnswers(tpl, { job, site, customer, system, engineerName: profile!.full_name }),
             time_on_site: j.on_site_at ?? new Date().toISOString(),
             time_off_site: null,
             engineer_signature_url: null,
@@ -72,10 +83,7 @@ export function FillJobsheetPage() {
         return;
       }
       if (!cancelled) setJobsheet(js);
-
-      // Load template
-      const mod = await import(`../../templates/${j.template_id}.json`);
-      if (!cancelled) setTemplate(mod.default as TemplateDef);
+      if (!cancelled) setTemplate(tpl);
       if (!cancelled) setIsLoading(false);
     }
 
@@ -203,6 +211,7 @@ export function FillJobsheetPage() {
         companyId={profile?.company_id ?? ''}
         readOnly={false}
         onSubmit={handleSubmit}
+        prepareSubmit={answers => fillSubmitAnswers(template, answers, job, new Date())}
       />
     </div>
   );

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '../../lib/db';
 import { useAuth } from '../../auth/AuthProvider';
 import type { Customer, Site, Job, Quote, Invoice, Device } from '../../types';
+import { FEATURES } from '../../lib/features';
 
 // ─── Result Types ─────────────────────────────────────────────────────────────
 
@@ -123,21 +124,21 @@ async function runSearch(q: string): Promise<GroupedResults> {
       .limit(4)
       .toArray(),
     db.sites
-      .filter((s: Site) => s.address.toLowerCase().includes(q))
+      .filter((s: Site) => `${s.name} ${s.address} ${(s.job_codes ?? []).join(' ')}`.toLowerCase().includes(q))
       .limit(4)
       .toArray(),
     db.jobs
       .filter((j: Job) => j.id.includes(q))
       .limit(4)
       .toArray(),
-    db.quotes
+    FEATURES.quotes ? db.quotes
       .filter((q2: Quote) => q2.reference.toLowerCase().includes(q))
       .limit(4)
-      .toArray(),
-    db.invoices
+      .toArray() : [],
+    FEATURES.invoices ? db.invoices
       .filter((i: Invoice) => i.reference.toLowerCase().includes(q))
       .limit(4)
-      .toArray(),
+      .toArray() : [],
     db.devices
       .filter((d: Device) =>
         (d.serial_number ?? '').toLowerCase().includes(q) ||
@@ -157,7 +158,7 @@ async function runSearch(q: string): Promise<GroupedResults> {
     sites: sites.map((s: Site) => ({
       kind: 'site' as ResultKind,
       id: s.id,
-      primary: s.address,
+      primary: s.name,
     })),
     jobs: jobs.map((j: Job) => ({
       kind: 'job' as ResultKind,
@@ -302,7 +303,7 @@ export function GlobalSearch() {
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search customers, sites, jobs, invoices…"
+            placeholder={FEATURES.invoices ? "Search customers, sites, jobs, invoices…" : "Search customers, sites, job codes…"}
             className="flex-1 text-sm outline-none placeholder-slate-400"
           />
           <kbd className="hidden sm:inline text-xs text-slate-400 border border-slate-200 rounded px-1.5 py-0.5">Esc</kbd>

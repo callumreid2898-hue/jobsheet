@@ -1,4 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
+import { FEATURES } from '../../lib/features';
 import { useRemedials } from '../../hooks/useRemedials';
 import { useSites } from '../../hooks/useSites';
 import { RemedialRow } from '../../components/RemedialRow';
@@ -37,7 +38,7 @@ export function RemedialsListPage() {
       ...remedials.map(r => [
         r.priority,
         r.description,
-        siteMap.get(r.site_id)?.address ?? r.site_id,
+        siteMap.get(r.site_id)?.name ?? r.site_id,
         r.status,
         r.created_at ?? '',
       ]),
@@ -78,7 +79,7 @@ export function RemedialsListPage() {
       >
         <option value="">All statuses</option>
         <option value="open">Open</option>
-        <option value="quoted">Quoted</option>
+        {FEATURES.quotes && <option value="quoted">Quoted</option>}
         <option value="done">Done</option>
       </select>
 

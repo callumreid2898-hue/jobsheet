@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FEATURES } from '../../lib/features';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import { useProfiles } from '../../hooks/useProfiles';
@@ -265,7 +266,7 @@ export function JobDetailPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <RecordHeader
-        title={site?.address ?? job.id}
+        title={site?.name ?? job.id}
         subtitle={customer?.name}
         badge={<StatusPill status={job.status} />}
         onBack={() => navigate('/manager/jobs')}
@@ -281,7 +282,7 @@ export function JobDetailPage() {
                 Mark reviewed
               </button>
             )}
-            {actions.includes('invoice') && (
+            {FEATURES.invoices && actions.includes('invoice') && (
               <button
                 type="button"
                 onClick={() => navigate(`/manager/invoices/create?job=${job.id}`)}
@@ -341,6 +342,9 @@ export function JobDetailPage() {
                 ))}
               </select>
             </div>
+            {job.call_no        && <DetailRow label="Call No"        value={job.call_no} />}
+            {job.client_no      && <DetailRow label="Client No"      value={job.client_no} />}
+            {job.reported_fault && <DetailRow label="Reported fault" value={job.reported_fault} />}
             <DetailRow label="Notes" value={job.notes ?? '—'} />
             {job.travelling_at  && <DetailRow label="Travelling at"  value={formatDate(job.travelling_at)} />}
             {job.on_site_at     && <DetailRow label="On site at"     value={formatDate(job.on_site_at)} />}

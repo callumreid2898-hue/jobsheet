@@ -39,7 +39,7 @@ export function InvoicesListPage() {
     [customers],
   );
   const siteMap = useMemo(
-    () => new Map(sites.map(s => [s.id, s.address])),
+    () => new Map(sites.map(s => [s.id, s.name])),
     [sites],
   );
 

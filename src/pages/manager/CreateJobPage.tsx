@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { writeRecord } from '../../lib/writeRecord';
+import { writeRecords, type Write } from '../../lib/writeRecord';
 import { localISODate } from '../../lib/dates';
 import { useAuth } from '../../auth/AuthProvider';
 import { useCustomers } from '../../hooks/useCustomers';
@@ -9,17 +9,8 @@ import { useSystems } from '../../hooks/useSystems';
 import { useProfiles } from '../../hooks/useProfiles';
 import { useJobs } from '../../hooks/useJobs';
 import { DEFAULT_DURATION_MINUTES, findClashes, fromMinutes, jobInterval } from '../../lib/planner';
+import { TEMPLATE_OPTIONS } from '../../templates/labels';
 import type { Job, TemplateId, JobType } from '../../types';
-
-const templateOptions: { value: TemplateId; label: string }[] = [
-  { value: 'fire_alarm_service',     label: 'Fire Alarm Service' },
-  { value: 'fire_alarm_inspection',  label: 'Fire Alarm Inspection' },
-  { value: 'corrective_maintenance', label: 'Corrective Maintenance' },
-  { value: 'reactive_callout',       label: 'Reactive Callout' },
-  { value: 'emergency_lighting_test',label: 'Emergency Lighting Test' },
-  { value: 'cctv_maintenance',       label: 'CCTV Maintenance' },
-  { value: 'cctv_handover',          label: 'CCTV Handover' },
-];
 
 export function CreateJobPage() {
   const navigate = useNavigate();
@@ -42,6 +33,9 @@ export function CreateJobPage() {
     scheduled_time: searchParams.get('time') ?? '',
     duration_minutes: String(DEFAULT_DURATION_MINUTES),
     notes: '',
+    call_no: '',
+    client_no: '',
+    reported_fault: '',
   });
   const { jobs: sameDayJobs } = useJobs({ date: form.scheduled_date || undefined });
 
@@ -84,12 +78,21 @@ export function CreateJobPage() {
       duration_minutes: Number(form.duration_minutes) || null,
       status: form.assigned_engineer_id ? 'scheduled' : 'unassigned',
       notes: form.notes || null,
+      client_no: form.client_no.trim() || null,
+      call_no: form.call_no.trim() || null,
+      reported_fault: form.reported_fault.trim() || null,
       travelling_at: null,
       on_site_at: null,
       completed_at: null,
       created_at: new Date().toISOString(),
     };
-    await writeRecord('jobs', 'insert', { ...job });
+    const writes: Write[] = [{ table: 'jobs', op: 'insert', row: { ...job } }];
+    // The first client no. given for a site becomes the site's, so later jobs get it
+    const site = sites.find(s => s.id === form.site_id);
+    if (site && !site.client_no && job.client_no) {
+      writes.push({ table: 'sites', op: 'update', row: { id: site.id, client_no: job.client_no } });
+    }
+    await writeRecords(writes);
     setSaving(false);
     navigate('/manager/jobs');
   }
@@ -108,9 +111,9 @@ export function CreateJobPage() {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Site <span className="text-red-500">*</span></label>
-          <select required value={form.site_id} onChange={e => setForm(f => ({...f, site_id: e.target.value, system_id: ''}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">
+          <select required value={form.site_id} onChange={e => { const siteId = e.target.value; setForm(f => ({...f, site_id: siteId, system_id: '', client_no: sites.find(s => s.id === siteId)?.client_no ?? ''})); }} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">
             <option value="">— select —</option>
-            {filteredSites.map(s => <option key={s.id} value={s.id}>{s.address}</option>)}
+            {filteredSites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
         <div>
@@ -123,7 +126,7 @@ export function CreateJobPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Template <span className="text-red-500">*</span></label>
           <select required value={form.template_id} onChange={e => setForm(f => ({...f, template_id: e.target.value as TemplateId}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">
-            {templateOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {TEMPLATE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         <div>
@@ -161,6 +164,20 @@ export function CreateJobPage() {
             <option value="">— unassigned —</option>
             {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
           </select>
+        </div>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Call No</label>
+            <input type="text" value={form.call_no} onChange={e => setForm(f => ({...f, call_no: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Client No</label>
+            <input type="text" value={form.client_no} onChange={e => setForm(f => ({...f, client_no: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Reported fault</label>
+          <textarea value={form.reported_fault} onChange={e => setForm(f => ({...f, reported_fault: e.target.value}))} rows={3} placeholder="Optional — the engineer can edit it on the jobsheet" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none" />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

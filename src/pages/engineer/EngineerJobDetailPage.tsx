@@ -83,7 +83,10 @@ export function EngineerJobDetailPage() {
       </button>
 
       <div className="flex items-start justify-between mb-4">
-        <h1 className="text-xl font-bold text-gray-900 flex-1 pr-2">{site.address}</h1>
+        <div className="flex-1 pr-2">
+          <h1 className="text-xl font-bold text-gray-900">{site.name}</h1>
+          {site.address && site.address !== site.name && <p className="text-sm text-gray-500 mt-0.5">{site.address}</p>}
+        </div>
         <StatusPill status={job.status} />
       </div>
 

@@ -189,7 +189,7 @@ export function InvoiceDetailPage() {
     <div className="pb-8">
       <RecordHeader
         title={invoice.reference}
-        subtitle={site?.address ?? undefined}
+        subtitle={site?.name ?? undefined}
         badge={<StatusPill status={invoice.status} kind="invoice" />}
         actions={actions}
         onBack={() => navigate('/manager/invoices')}
@@ -203,7 +203,7 @@ export function InvoiceDetailPage() {
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             <dl className="px-5 py-1 divide-y divide-slate-100">
               <Row label="Customer"    value={customer?.name ?? '—'} />
-              <Row label="Site"        value={site?.address ?? '—'} />
+              <Row label="Site"        value={site ? [site.name, site.address].filter(Boolean).join(', ') : '—'} />
               <Row label="Job"         value={job ? `${job.scheduled_date} — ${job.type.replace(/_/g, ' ')}` : '—'} />
               <Row label="Quote"       value={quote?.reference ?? (invoice.quote_id ? invoice.quote_id : '—')} />
               <Row label="Issued Date" value={fmt(invoice.issued_date)} />

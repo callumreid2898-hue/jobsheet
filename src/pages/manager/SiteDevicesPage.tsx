@@ -30,7 +30,7 @@ export function SiteDevicesPage() {
       </button>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-900 truncate">
-          {site ? site.address : 'Devices'}
+          {site ? site.name : 'Devices'}
         </h1>
         <button
           onClick={() => navigate(`/manager/sites/${siteId}/devices/add`)}

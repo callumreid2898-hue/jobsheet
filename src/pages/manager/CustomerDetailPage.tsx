@@ -7,7 +7,8 @@ import { RecordHeader } from '../../components/ui/RecordHeader';
 import { Tabs, useActiveTab } from '../../components/ui/Tabs';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
-import type { Customer, ContractStatus } from '../../types';
+import type { Customer } from '../../types';
+import { SYSTEM_TYPE_LABELS, CONTRACT_STATUS_CLASSES } from '../../lib/contracts';
 
 const TABS = [
   { id: 'overview',  label: 'Overview'  },
@@ -15,20 +16,6 @@ const TABS = [
   { id: 'contracts', label: 'Contracts' },
   { id: 'notes',     label: 'Notes'     },
 ];
-
-const SYSTEM_TYPE_LABELS: Record<string, string> = {
-  fire_alarm:          'Fire Alarm',
-  emergency_lighting:  'Emergency Lighting',
-  cctv:                'CCTV',
-  intruder:            'Intruder',
-  access_control:      'Access Control',
-};
-
-const CONTRACT_STATUS_CLASSES: Record<ContractStatus, string> = {
-  active:  'bg-green-100 text-green-700',
-  paused:  'bg-amber-100 text-amber-700',
-  expired: 'bg-red-100 text-red-700',
-};
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
@@ -141,7 +128,7 @@ export function CustomerDetailPage() {
                       to={`/manager/sites/${site.id}`}
                       className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm hover:bg-slate-50 transition-colors"
                     >
-                      <span className="text-sm font-medium text-slate-800">{site.address}</span>
+                      <span className="text-sm font-medium text-slate-800">{site.name}</span>
                       <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>

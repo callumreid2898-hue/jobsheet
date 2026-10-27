@@ -1,7 +1,7 @@
 import { useState, useMemo, createContext, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
+import { DndContext, pointerWithin, rectIntersection, useDraggable, useDroppable } from '@dnd-kit/core';
+import type { CollisionDetection, DragEndEvent } from '@dnd-kit/core';
 import { writeRecord } from '../../lib/writeRecord';
 import { isPlannable } from '../../lib/jobStatus';
 import { localISODate } from '../../lib/dates';
@@ -73,6 +73,13 @@ const JOB_TYPE_COLOR: Record<string, string> = {
   install: 'bg-green-100 text-green-700',
   remedial_works: 'bg-orange-100 text-orange-700',
   survey: 'bg-purple-100 text-purple-700',
+};
+
+// Drop on the slot under the pointer. The default (most overlap with the card)
+// picks the slot below when a tall card is grabbed near its top.
+const dropUnderPointer: CollisionDetection = args => {
+  const hits = pointerWithin(args);
+  return hits.length > 0 ? hits : rectIntersection(args);
 };
 
 // ─── Draggable job card ────────────────────────────────────────────────────────
@@ -468,7 +475,7 @@ export function PlannerPage() {
 
   // site_id -> address
   const siteMap = useMemo(
-    () => new Map<string, string>(sites.map((s: Site) => [s.id, s.address])),
+    () => new Map<string, string>(sites.map((s: Site) => [s.id, s.name])),
     [sites]
   );
 
@@ -675,7 +682,7 @@ export function PlannerPage() {
         </div>
       ) : (
         <ClashContext.Provider value={clashes}>
-        <DndContext onDragEnd={handleDragEnd}>
+        <DndContext onDragEnd={handleDragEnd} collisionDetection={dropUnderPointer}>
           {attentionJobs.length > 0 && (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3" data-testid="planner-attention">
               <p className="text-xs font-semibold text-amber-800 mb-2">

@@ -81,13 +81,13 @@ const props: JobsheetPDFProps = {
   job: {
     id: 'job', company_id: 'co', site_id: 'site', system_id: null, type: 'ppm_service',
     template_id: 'fire_alarm_service', assigned_engineer_id: 'eng', scheduled_date: '2026-10-20',
-    status: 'awaiting_review', notes: null, scheduled_time: '09:00', duration_minutes: null, travelling_at: null,
+    status: 'awaiting_review', notes: null, client_no: null, call_no: null, reported_fault: null, scheduled_time: '09:00', duration_minutes: null, travelling_at: null,
     on_site_at: '2026-10-20T08:55:00Z', completed_at: '2026-10-20T11:30:00Z', created_at: '2026-10-01T00:00:00Z',
   },
   site: {
-    id: 'site', company_id: 'co', customer_id: 'cust', address: '1 High St', contact_name: null, contact_phone: null,
+    id: 'site', company_id: 'co', customer_id: 'cust', name: 'High St Office', address: '1 High St', job_codes: [], contact_name: null, contact_phone: null,
     access_notes: null, arc_name: null, arc_account: null, police_urn: null, hazards: null, keyholders: [],
-    created_at: '',
+    client_no: null, created_at: '',
   },
   customer: {
     id: 'cust', company_id: 'co', name: 'Acme', contact_name: null, contact_email: null, contact_phone: null,

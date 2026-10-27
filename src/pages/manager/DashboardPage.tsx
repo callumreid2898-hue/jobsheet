@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { FEATURES } from '../../lib/features';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -178,26 +179,23 @@ function formatDate(iso: string) {
   return `${d}/${m}/${y}`;
 }
 
-function daysUntil(iso: string): number {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const due   = new Date(iso);
-  return Math.ceil((due.getTime() - today.getTime()) / 86400000);
-}
+const DUE_COLOURS: Record<UpcomingVisit['dueState'], string> = {
+  overdue: '#EF4444', due_today: '#EF4444', due_soon: '#F97316', scheduled: '#10B981', not_scheduled: '#94A3B8', inactive: '#94A3B8',
+};
 
-function UpcomingPPM({ visits, isLoading }: { visits: UpcomingVisit[]; isLoading: boolean }) {
+function UpcomingPPM({ visits, more, isLoading }: { visits: UpcomingVisit[]; more: number; isLoading: boolean }) {
   const navigate = useNavigate();
   if (isLoading) return <div className="flex justify-center items-center h-48"><Spinner /></div>;
-  if (!visits.length) return <p className="text-sm text-slate-400 text-center py-12">No PPM visits due in next 90 days</p>;
+  if (!visits.length) return <p className="text-sm text-slate-400 text-center py-12">No PPM visits overdue or due in the next 90 days</p>;
 
   return (
     <ul className="divide-y divide-slate-100">
       {visits.map((v) => {
-        const days = daysUntil(v.nextDue);
-        const urgentColor = days <= 7 ? '#EF4444' : days <= 30 ? '#F97316' : '#10B981';
+        const urgentColor = DUE_COLOURS[v.dueState];
         return (
           <li key={v.contractId}>
             <button
-              onClick={() => navigate(`/manager/sites/${v.siteId}`)}
+              onClick={() => navigate(`/manager/contracts/${v.contractId}`)}
               className="w-full flex items-center justify-between py-2.5 text-left hover:bg-slate-50 transition-colors rounded-lg px-1"
             >
               <div className="min-w-0 flex-1">
@@ -206,12 +204,17 @@ function UpcomingPPM({ visits, isLoading }: { visits: UpcomingVisit[]; isLoading
               </div>
               <div className="shrink-0 text-right ml-3">
                 <p className="text-xs font-semibold" style={{ color: urgentColor }}>{formatDate(v.nextDue)}</p>
-                <p className="text-xs text-slate-400">{days <= 0 ? 'Overdue' : `${days}d`}</p>
+                <p className="text-xs text-slate-400">{v.dueText}</p>
               </div>
             </button>
           </li>
         );
       })}
+      {more > 0 && (
+        <li className="pt-2 text-xs text-slate-500">
+          <button onClick={() => navigate('/manager/reports')} className="hover:underline">+{more} more on the PPM report</button>
+        </li>
+      )}
     </ul>
   );
 }
@@ -232,9 +235,9 @@ export function DashboardPage() {
     { dataTile: 'open-remedials',   label: 'Open Remedials',   count: stats.openRemedials,   href: '/manager/remedials',                       color: '#EF4444', icon: <IconAlert /> },
     { dataTile: 'urgent-remedials', label: 'Urgent Remedials', count: stats.urgentRemedials, href: '/manager/remedials?priority=urgent',       color: '#DC2626', icon: <IconFire /> },
     { dataTile: 'active-contracts', label: 'Active Contracts', count: stats.activeContracts, href: '/manager/contracts',                       color: '#10B981', icon: <IconShield /> },
-    { dataTile: 'overdue-invoices', label: 'Overdue Invoices', count: stats.overdueInvoices, href: '/manager/invoices?status=overdue',         color: '#EF4444', icon: <IconReceipt /> },
-    { dataTile: 'draft-invoices',   label: 'Draft Invoices',   count: stats.draftInvoices,   href: '/manager/invoices?status=draft',           color: '#94A3B8', icon: <IconDraft /> },
-  ];
+    { dataTile: 'overdue-invoices', label: 'Overdue Invoices', count: stats.overdueInvoices, href: '/manager/invoices?status=overdue',         color: '#EF4444', icon: <IconReceipt />, feature: 'invoices' as const },
+    { dataTile: 'draft-invoices',   label: 'Draft Invoices',   count: stats.draftInvoices,   href: '/manager/invoices?status=draft',           color: '#94A3B8', icon: <IconDraft />, feature: 'invoices' as const },
+  ].filter(t => !('feature' in t && t.feature) || FEATURES[t.feature]);
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -267,7 +270,7 @@ export function DashboardPage() {
           <RemedialsChart data={stats.remedialsByPriority} isLoading={stats.isLoading} />
         </Card>
         <Card title="Upcoming PPM Visits (90 days)">
-          <UpcomingPPM visits={stats.upcomingVisits} isLoading={stats.isLoading} />
+          <UpcomingPPM visits={stats.upcomingVisits} more={stats.upcomingVisitsMore} isLoading={stats.isLoading} />
         </Card>
       </div>
     </div>

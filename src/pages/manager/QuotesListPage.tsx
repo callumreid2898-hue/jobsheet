@@ -70,7 +70,7 @@ export function QuotesListPage() {
                     {cfg.label}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 mb-1">{site?.address ?? 'Unknown site'}</p>
+                <p className="text-xs text-gray-500 mb-1">{site?.name ?? 'Unknown site'}</p>
                 <p className="text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString('en-GB')}</p>
               </div>
             );

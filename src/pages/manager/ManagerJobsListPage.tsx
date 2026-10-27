@@ -1,4 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { FEATURES } from '../../lib/features';
 import { useJobs } from '../../hooks/useJobs';
 import { useSites } from '../../hooks/useSites';
 import { useProfiles } from '../../hooks/useProfiles';
@@ -43,7 +44,7 @@ export function ManagerJobsListPage() {
         <option value="completed">Completed</option>
         <option value="awaiting_review">Awaiting Review</option>
         <option value="reviewed">Reviewed</option>
-        <option value="invoiced">Invoiced</option>
+        {FEATURES.invoices && <option value="invoiced">Invoiced</option>}
         <option value="cancelled">Cancelled</option>
       </select>
 

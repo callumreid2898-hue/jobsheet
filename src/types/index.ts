@@ -93,7 +93,9 @@ export interface Site {
   id: string;
   company_id: string;
   customer_id: string;
-  address: string;
+  name: string;            // e.g. "250 St Vincent St (250 SVS)" (00016)
+  address: string;         // '' when not known
+  job_codes: string[];     // Emtec job codes, e.g. FS1178, FS1178/4 (00016)
   contact_name: string | null;
   contact_phone: string | null;
   access_notes: string | null;
@@ -102,6 +104,7 @@ export interface Site {
   police_urn: string | null;
   hazards: string | null;
   keyholders: KeyholderEntry[];
+  client_no: string | null; // default client no. for this site's jobs (00015)
   created_at: string;
 }
 
@@ -133,6 +136,9 @@ export interface Job {
   scheduled_date: string; // 'YYYY-MM-DD'
   status: JobStatus;
   notes: string | null;
+  client_no: string | null;      // jobsheet header; defaults to the site's (00015)
+  call_no: string | null;
+  reported_fault: string | null; // pre-fills the jobsheet; the engineer can edit it
   scheduled_time: string | null; // 'HH:mm'
   duration_minutes: number | null; // planner default when null: DEFAULT_DURATION_MINUTES
   travelling_at: string | null;
@@ -362,6 +368,8 @@ export interface Contract {
   system_type: SystemType;
   visit_frequency: VisitFrequency;
   next_visit_due: string | null; // 'YYYY-MM-DD'
+  start_date: string | null;     // anchors the visit dates (see advanceDue)
+  end_date: string | null;       // no visits are scheduled after this
   status: ContractStatus;
   notes: string | null;
   created_at: string;

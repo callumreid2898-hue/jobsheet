@@ -33,6 +33,8 @@ const SITE: Site = {
   id:            'demo-site',
   company_id:    'demo',
   customer_id:   'demo-customer',
+  name:          'SQA Lowden',
+  job_codes:     ['FS1182'],
   address:       '24 Wester Shawfair, Danderhall, Dalkeith, EH22 1FD',
   contact_name:  'Simon Parsins',
   contact_phone: '0131 561 0200',
@@ -42,6 +44,7 @@ const SITE: Site = {
   police_urn:    null,
   hazards:       null,
   keyholders:    [],
+  client_no:     'C-1024',
   created_at:    '2024-01-01T00:00:00Z',
 };
 
@@ -90,6 +93,9 @@ function makeJob(templateId: TemplateId, type: Job['type']): Job {
     scheduled_time:       '09:00', duration_minutes: null,
     status:               'completed',
     notes:                null,
+    client_no:            null,
+    call_no:              null,
+    reported_fault:       null,
     travelling_at:        null,
     on_site_at:           '2026-10-17T09:00:00Z',
     completed_at:         '2026-10-17T10:30:00Z',

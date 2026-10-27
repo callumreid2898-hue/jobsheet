@@ -114,7 +114,7 @@ export function CreateQuotePage() {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
           >
             <option value="">— select site —</option>
-            {sites.map(s => <option key={s.id} value={s.id}>{s.address}</option>)}
+            {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
 

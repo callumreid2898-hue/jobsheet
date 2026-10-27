@@ -3,20 +3,22 @@
   "name": "Corrective Maintenance Report",
   "system_type": "fire_alarm",
   "job_type": "reactive_callout",
-  "version": 1,
+  "version": 2,
   "sections": [
     {
       "id": "call_details",
       "title": "Call Details",
       "fields": [
-        { "id": "date", "type": "text", "label": "Date" },
-        { "id": "call_no", "type": "text", "label": "Call No" },
-        { "id": "client_no", "type": "text", "label": "Client No" },
+        { "id": "site_name_address", "type": "text", "label": "Site name & address", "prefill": "site" },
+        { "id": "date", "type": "text", "label": "Date", "prefill": "date" },
+        { "id": "call_no", "type": "text", "label": "Call No", "prefill": "call_no" },
+        { "id": "client_no", "type": "text", "label": "Client No", "prefill": "client_no" },
         {
           "id": "job_type_radio",
           "type": "select",
           "label": "Job type",
-          "options": ["Maintenance", "Repairs", "Call out"]
+          "options": ["Maintenance", "Repairs", "Call out"],
+          "prefill": "visit_type"
         }
       ]
     },
@@ -27,8 +29,9 @@
         {
           "id": "reported_fault",
           "type": "longtext",
-          "label": "Reported fault description",
-          "required": true
+          "label": "Reported fault",
+          "required": true,
+          "prefill": "reported_fault"
         },
         { "id": "device_no", "type": "text", "label": "Device No" },
         { "id": "device_location", "type": "text", "label": "Device Location" },
@@ -37,33 +40,19 @@
     },
     {
       "id": "signalling_type",
-      "title": "Signalling Type",
+      "title": "Signalling",
       "fields": [
         {
           "id": "signalling_type",
           "type": "select",
           "label": "Type of signalling",
-          "options": [
-            "Digital Com",
-            "Audible",
-            "Customer related",
-            "Company related",
-            "Redcare",
-            "Adpro",
-            "Line fault related",
-            "Other"
-          ]
+          "options": ["Digital Com", "Redcare", "BT complete", "Audible", "Adpro", "Other"]
         },
         {
           "id": "cause",
           "type": "select",
           "label": "Fault cause",
-          "options": [
-            "Customer related",
-            "Company related",
-            "Line fault related",
-            "Other"
-          ]
+          "options": ["Customer related", "Company related", "Line fault related", "Other"]
         }
       ]
     },
@@ -81,7 +70,7 @@
     },
     {
       "id": "equipment_removed",
-      "title": "Equipment Removed",
+      "title": "Equipment Removed From Site",
       "repeatable": true,
       "repeat_label": "Item",
       "fields": [
@@ -98,25 +87,45 @@
       "repeatable": true,
       "repeat_label": "Material",
       "fields": [
-        { "id": "material_description", "type": "text", "label": "Description", "required": true },
+        { "id": "material_description", "type": "text", "label": "Description" },
         { "id": "material_qty", "type": "number", "label": "Qty" }
       ]
     },
     {
-      "id": "time_further_action",
-      "title": "Time & Further Action",
+      "id": "further_action",
+      "title": "Further Action Required",
       "fields": [
-        { "id": "travel_time", "type": "text", "label": "Travel time (hrs)" },
-        { "id": "time_on_site", "type": "text", "label": "Time on site (hrs)" },
-        { "id": "further_action_required", "type": "longtext", "label": "Further action required" },
+        { "id": "further_action_required", "type": "longtext", "label": "Further action required" }
+      ]
+    },
+    {
+      "id": "time_further_action",
+      "title": "Times",
+      "fields": [
+        { "id": "travel_time", "type": "text", "label": "Travel time", "prefill": "travel_time" },
+        { "id": "time_arrival", "type": "text", "label": "Time arrival (HH:MM)", "prefill": "arrival_time" },
+        { "id": "time_depart", "type": "text", "label": "Time depart (HH:MM)", "hint": "Filled in when you submit if left blank", "prefill": "departure_time" },
+        { "id": "time_on_site", "type": "text", "label": "Time taken", "hint": "Worked out when you submit if left blank", "prefill": "time_taken" }
+      ]
+    },
+    {
+      "id": "system_status",
+      "title": "System Status",
+      "fields": [
         {
           "id": "system_operational",
           "type": "yes_no_na",
-          "label": "System left operational",
+          "label": "System left in full working order",
           "required": true,
           "triggers_remedial": true,
           "remedialOn": "no",
           "remedial_priority": "urgent"
+        },
+        {
+          "id": "disconnections",
+          "type": "longtext",
+          "label": "Items and/or disconnections not in working order",
+          "hint": "Leave blank if the system is fully working"
         }
       ]
     },
@@ -124,11 +133,11 @@
       "id": "sign_off",
       "title": "Sign-Off",
       "fields": [
-        { "id": "engineer_name", "type": "text", "label": "Engineer Name" },
+        { "id": "engineer_name", "type": "text", "label": "Engineer Name", "prefill": "engineer_name" },
         { "id": "engineer_signature", "type": "signature", "label": "Engineer Signature", "required": true },
         { "id": "customer_name", "type": "text", "label": "Customer Name" },
         { "id": "customer_signature", "type": "signature", "label": "Customer Signature" },
-        { "id": "sign_date", "type": "text", "label": "Date" }
+        { "id": "sign_date", "type": "text", "label": "Date", "prefill": "date" }
       ]
     }
   ]

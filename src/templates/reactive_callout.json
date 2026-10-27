@@ -9,9 +9,9 @@
       "id": "fault",
       "title": "Reported Fault",
       "fields": [
-        {"id": "reported_fault", "type": "longtext", "label": "Reported fault description", "required": true},
-        {"id": "time_on_site", "type": "text", "label": "Time on site (HH:MM)", "required": true},
-        {"id": "time_off_site", "type": "text", "label": "Time off site (HH:MM)", "required": true}
+        {"id": "reported_fault", "type": "longtext", "label": "Reported fault description", "required": true, "prefill": "reported_fault"},
+        {"id": "time_on_site", "type": "text", "label": "Time on site (HH:MM)", "required": true, "prefill": "arrival_time"},
+        {"id": "time_off_site", "type": "text", "label": "Time off site (HH:MM)", "required": true, "prefill": "departure_time"}
       ]
     },
     {

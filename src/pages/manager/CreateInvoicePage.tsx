@@ -297,7 +297,7 @@ export function CreateInvoicePage() {
             >
               <option value="">Select site…</option>
               {filteredSites.map(s => (
-                <option key={s.id} value={s.id}>{s.address}</option>
+                <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           </div>

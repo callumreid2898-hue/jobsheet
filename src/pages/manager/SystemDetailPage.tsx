@@ -8,6 +8,7 @@ import { Tabs, useActiveTab } from '../../components/ui/Tabs';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import type { System, RemedialPriority } from '../../types';
+import { SYSTEM_TYPE_LABELS } from '../../lib/contracts';
 
 const TABS = [
   { id: 'overview',  label: 'Overview'  },
@@ -15,14 +16,6 @@ const TABS = [
   { id: 'history',   label: 'History'   },
   { id: 'remedials', label: 'Remedials' },
 ];
-
-const SYSTEM_TYPE_LABELS: Record<string, string> = {
-  fire_alarm:         'Fire Alarm',
-  emergency_lighting: 'Emergency Lighting',
-  cctv:               'CCTV',
-  intruder:           'Intruder',
-  access_control:     'Access Control',
-};
 
 const REMEDIAL_PRIORITY_CLASSES: Record<RemedialPriority, string> = {
   urgent:      'bg-red-100 text-red-700',

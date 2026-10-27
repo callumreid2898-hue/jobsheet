@@ -2,6 +2,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import type { PGlite } from '@electric-sql/pglite';
 import { createDb, as } from './harness';
+import { advanceDue } from '../../src/lib/contracts';
+import type { VisitFrequency } from '../../src/types';
 
 // Company A (two engineers, one manager) and company B (one manager).
 const CO_A = '0000000a-0000-0000-0000-000000000000';
@@ -390,3 +392,88 @@ describe('team (00013)', () => {
     await expect(as(db, U.mgrA, () => db.query(`select set_member_role('${P.engA}', 'owner')`))).rejects.toThrow(/invalid role/);
   });
 });
+
+describe('PPM engine (00014)', () => {
+  const C = '00000000-0000-0000-0008-000000000001';
+  const SITE = '00000000-0000-0000-0005-00000000000a';
+  const CUST = '00000000-0000-0000-0004-00000000000a';
+  const gen = (uid: string, date: string, engineer: string | null = null) => as(db, uid, () =>
+    db.query<{ generate_visit_job: string }>(
+      `select generate_visit_job('${C}', '${date}', ${engineer ? `'${engineer}'` : 'null'})`));
+  const contract = async () => (await db.query<{ next_visit_due: string | null }>(
+    `select to_char(next_visit_due, 'YYYY-MM-DD') next_visit_due from contracts where id = '${C}'`)).rows[0];
+  const visit = async (date: string) => (await db.query<{ status: string; job_id: string | null }>(
+    `select status, job_id from contract_visits where contract_id = '${C}' and scheduled_date = '${date}'`)).rows[0];
+
+  it('next_due_date() matches advanceDue() in the app', async () => {
+    const cases: [string, VisitFrequency, string | null][] = [
+      ['2026-01-31', 'monthly', null], ['2026-02-28', 'monthly', '2026-01-31'], ['2028-01-31', 'monthly', null],
+      ['2026-10-20', 'quarterly', null], ['2026-04-30', 'quarterly', '2026-01-31'], ['2026-03-10', 'quarterly', '2026-01-15'],
+      ['2026-10-20', 'biannual', null], ['2028-02-29', 'annual', null], ['2026-01-10', 'annual', '2026-06-01'],
+    ];
+    for (const [from, freq, anchor] of cases) {
+      const { rows } = await db.query<{ d: string }>(
+        `select to_char(next_due_date('${from}', '${freq}', ${anchor ? `'${anchor}'` : 'null'}), 'YYYY-MM-DD') d`);
+      expect([from, freq, anchor, rows[0].d]).toEqual([from, freq, anchor, advanceDue(from, freq, anchor)]);
+    }
+  });
+
+  it('a manager creates the visit and its PPM job once; engineers cannot', async () => {
+    await db.exec(`insert into contracts (id, company_id, site_id, customer_id, system_type, visit_frequency,
+        start_date, next_visit_due, reference)
+      values ('${C}', '${CO_A}', '${SITE}', '${CUST}', 'emergency_lighting', 'quarterly', '2026-01-31', '2026-10-31', 'EL-1')`);
+    await expect(gen(U.engA, '2026-10-31')).rejects.toThrow(/only managers/);
+    await expect(gen(U.mgrB, '2026-10-31')).rejects.toThrow(/not found/);
+
+    const job = (await gen(U.mgrA, '2026-10-31', P.engA)).rows[0].generate_visit_job;
+    expect((await gen(U.mgrA, '2026-10-31', P.engA)).rows[0].generate_visit_job).toBe(job); // idempotent
+    expect(await rows(`select type, template_id, status, assigned_engineer_id, notes from jobs where id = '${job}'`)).toEqual([{
+      type: 'ppm_service', template_id: 'emergency_lighting_test', status: 'scheduled',
+      assigned_engineer_id: P.engA, notes: 'PPM visit · EL-1',
+    }]);
+    expect(await visit('2026-10-31')).toEqual({ status: 'scheduled', job_id: job });
+  });
+
+  it('only one visit per date', async () => {
+    await expect(db.query(`insert into contract_visits (contract_id, company_id, scheduled_date)
+      values ('${C}', '${CO_A}', '2026-10-31')`)).rejects.toThrow(/duplicate key/);
+  });
+
+  it('submitting the job completes the visit and moves the contract on (keeping the start day)', async () => {
+    const { job_id } = await visit('2026-10-31');
+    await as(db, U.engA, () => db.query(`select set_job_status('${job_id}', 'on_site')`));
+    expect((await contract()).next_visit_due).toBe('2026-10-31'); // not yet
+    await as(db, U.engA, () => db.query(`select set_job_status('${job_id}', 'awaiting_review')`));
+    expect(await visit('2026-10-31')).toMatchObject({ status: 'complete' });
+    expect((await contract()).next_visit_due).toBe('2027-01-31');
+    // Later status changes (reviewed, invoiced) don't advance it again
+    await as(db, U.mgrA, () => db.query(`update jobs set status = 'reviewed' where id = '${job_id}'`));
+    expect((await contract()).next_visit_due).toBe('2027-01-31');
+  });
+
+  it('a late job for an older visit does not pull the date back', async () => {
+    const job = (await gen(U.mgrA, '2026-07-31', P.engA)).rows[0].generate_visit_job;
+    await as(db, U.mgrA, () => db.query(`update jobs set status = 'reviewed' where id = '${job}'`));
+    expect(await visit('2026-07-31')).toMatchObject({ status: 'complete' });
+    expect((await contract()).next_visit_due).toBe('2027-01-31');
+  });
+
+  it('a cancelled job frees its visit for a new job', async () => {
+    const job = (await gen(U.mgrA, '2027-01-31')).rows[0].generate_visit_job;
+    expect(await rows(`select status from jobs where id = '${job}'`)).toEqual([{ status: 'unassigned' }]);
+    await as(db, U.mgrA, () => db.query(`update jobs set status = 'cancelled' where id = '${job}'`));
+    expect(await visit('2027-01-31')).toEqual({ status: 'pending', job_id: null });
+    const again = (await gen(U.mgrA, '2027-01-31')).rows[0].generate_visit_job;
+    expect(again).not.toBe(job);
+  });
+
+  it('no visits after the end date; paused contracts get no jobs', async () => {
+    await db.exec(`update contracts set end_date = '2027-03-01' where id = '${C}'`);
+    const { job_id } = await visit('2027-01-31');
+    await as(db, U.mgrA, () => db.query(`update jobs set status = 'reviewed' where id = '${job_id}'`));
+    expect((await contract()).next_visit_due).toBeNull(); // 30 Apr would be after the end
+    await db.exec(`update contracts set status = 'paused' where id = '${C}'`);
+    await expect(gen(U.mgrA, '2027-04-30')).rejects.toThrow(/paused/);
+  });
+});
+

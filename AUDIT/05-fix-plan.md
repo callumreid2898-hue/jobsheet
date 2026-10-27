@@ -281,6 +281,37 @@ Tests: `tests/unit/jobFlow.test.ts` (transitions vs the RPC, BST/GMT dates, stab
 
 ## Batch 9 — PPM engine (L) · C12 M12 M13
 
+**Batch 9 result (2026-10-20), done locally, not applied to hosted:** all items below except the optional pg_cron (it needs the email provider). Notes:
+- **Migration `00014_ppm.sql`:**
+  - `contracts.start_date`/`end_date` (end ≥ start);
+  - duplicate visits cleaned up, then `unique(contract_id, scheduled_date)` and one visit per job;
+  - `next_due_date(from, frequency, anchor)`;
+  - `generate_visit_job(contract_id, date?, engineer?, template?)`. It creates or reuses the visit, creates a `ppm_service` job (template from the system type, unassigned or scheduled), and links them. Manager-only, active contracts only, idempotent per visit.
+  - `jobs_sync_contract_visit` trigger.
+- **Trigger rules:**
+  - A finished job counts from **awaiting_review** onwards, since submission is how jobs finish.
+  - The next date comes from the visit's date, not the completion date, so late jobs don't shift the schedule.
+  - It keeps the start date's day of month (31 Jan → 28 Feb → 31 Mar), never moves the date backwards, and becomes null past the end date.
+  - A cancelled job sets the visit back to pending with no job.
+- **Shared `src/lib/contracts.ts`:** labels (it also replaces the copies in Site/Customer/System detail pages), templates, date maths, `contractDueState` with `due_today` (M12: the due day is no longer "Overdue").
+- **Dashboard PPM card:** overdue first, then due within 90 days, with labels. It shows "+n more", and clicking opens the contract.
+- **Reports:** "Due before" excludes contracts with no date; shows labels and due state.
+- **Contract form (create and edit):**
+  - `/manager/contracts/:id/edit`;
+  - a system picker, which sets the system type;
+  - the customer must come from the site, so the insert no longer silently fails with `customer_id: ''` (M13);
+  - start/end dates; the next visit defaults to the start date.
+- **ContractDetailPage:**
+  - a due-state label and an Edit link;
+  - "Create job for this visit" with an optional engineer, which opens the new job;
+  - visits link to their job, and pending visits get "Create job";
+  - adding a visit on an existing date is refused.
+- **Also fixed:** the planner dropped onto the slot with the most overlap with the dragged card, often one below the pointer. It now uses `pointerWithin`. The planner e2e test also waits for the drop highlight before releasing; it was flaky.
+- **Tests:**
+  - `tests/unit/contracts.test.ts` (12): month ends, leap years, every frequency, anchor day, BST/GMT day counts, due states and labels;
+  - `tests/db/rls.test.ts` "PPM engine" (7): SQL vs TS date maths case by case, generate permissions and idempotency, unique visits, completion advances, a late job doesn't go back, cancel frees the visit, end date, paused contracts;
+  - `tests/e2e/contracts.spec.ts` (1).
+
 **Files:** new `src/lib/contracts.ts` (`advanceDue`, `contractDueState`, labels), a migration (`generate_visit_job` RPC, trigger on `jobs` status, `unique(contract_id, scheduled_date)`, `start_date`/`end_date`), `ContractDetailPage.tsx`, `CreateContractPage.tsx` (system picker, edit form), `useDashboardStats.ts`, `ReportsPage.tsx`.
 
 - "Generate job" for due visits; a job reaching completed/reviewed marks the visit complete and advances `next_visit_due`; a cancelled job resets the visit.

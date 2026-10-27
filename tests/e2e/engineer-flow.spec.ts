@@ -19,7 +19,7 @@ function fixtures(): Record<string, Row[]> {
     profiles: [{ id: PROFILE_ID, user_id: USER_ID, company_id: COMPANY_ID, role: 'engineer', full_name: 'Eng One', email: 'eng@test.local' }],
     companies: [{ id: COMPANY_ID, name: 'Test Fire Ltd' }],
     customers: [{ id: CUSTOMER_ID, company_id: COMPANY_ID, name: 'Acme Offices' }],
-    sites: [{ id: SITE_ID, company_id: COMPANY_ID, customer_id: CUSTOMER_ID, address: '1 Test Street' }],
+    sites: [{ id: SITE_ID, company_id: COMPANY_ID, customer_id: CUSTOMER_ID, name: '1 Test Street', address: '1 Test Street', job_codes: [] }],
     systems: [],
     jobs: [{
       id: JOB_ID, company_id: COMPANY_ID, site_id: SITE_ID, system_id: null,

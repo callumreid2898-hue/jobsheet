@@ -8,7 +8,7 @@ import type { AuditLog, Job, JobStatus, Profile, Remedial } from '../../src/type
 const job = (id: string, over: Partial<Job> = {}): Job => ({
   id, company_id: 'co', site_id: 's', system_id: null, type: 'ppm_service', template_id: 'fire_alarm_service',
   assigned_engineer_id: 'eng1', scheduled_date: '2026-10-26', scheduled_time: null, duration_minutes: null,
-  status: 'scheduled', notes: null, travelling_at: null, on_site_at: null, completed_at: null,
+  status: 'scheduled', notes: null, client_no: null, call_no: null, reported_fault: null, travelling_at: null, on_site_at: null, completed_at: null,
   created_at: '2026-10-01T09:00:00Z', ...over,
 });
 

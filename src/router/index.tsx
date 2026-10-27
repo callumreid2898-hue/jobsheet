@@ -43,6 +43,7 @@ import { SystemDetailPage } from '../pages/manager/SystemDetailPage';
 import { InvoicesListPage } from '../pages/manager/InvoicesListPage';
 import { CreateInvoicePage } from '../pages/manager/CreateInvoicePage';
 import { InvoiceDetailPage } from '../pages/manager/InvoiceDetailPage';
+import { FEATURES } from '../lib/features';
 import { ReportsPage } from '../pages/manager/ReportsPage';
 import { ImportPage } from '../pages/manager/ImportPage';
 
@@ -123,16 +124,21 @@ export function AppRoutes() {
       <Route path="/manager/contracts" element={<M><ContractsListPage /></M>} />
       <Route path="/manager/contracts/create" element={<M><CreateContractPage /></M>} />
       <Route path="/manager/contracts/:contractId" element={<M><ContractDetailPage /></M>} />
+      <Route path="/manager/contracts/:contractId/edit" element={<M><CreateContractPage /></M>} />
 
       {/* ── Manager quotes ─────────────────────────────────────── */}
-      <Route path="/manager/quotes" element={<M><QuotesListPage /></M>} />
-      <Route path="/manager/quotes/create" element={<M><CreateQuotePage /></M>} />
-      <Route path="/manager/quotes/:quoteId" element={<M><QuoteDetailPage /></M>} />
+      {FEATURES.quotes && <>
+        <Route path="/manager/quotes" element={<M><QuotesListPage /></M>} />
+        <Route path="/manager/quotes/create" element={<M><CreateQuotePage /></M>} />
+        <Route path="/manager/quotes/:quoteId" element={<M><QuoteDetailPage /></M>} />
+      </>}
 
       {/* ── Manager invoices ───────────────────────────────────── */}
-      <Route path="/manager/invoices" element={<M><InvoicesListPage /></M>} />
-      <Route path="/manager/invoices/create" element={<M><CreateInvoicePage /></M>} />
-      <Route path="/manager/invoices/:invoiceId" element={<M><InvoiceDetailPage /></M>} />
+      {FEATURES.invoices && <>
+        <Route path="/manager/invoices" element={<M><InvoicesListPage /></M>} />
+        <Route path="/manager/invoices/create" element={<M><CreateInvoicePage /></M>} />
+        <Route path="/manager/invoices/:invoiceId" element={<M><InvoiceDetailPage /></M>} />
+      </>}
 
       {/* ── Manager reports & import ───────────────────────────── */}
       <Route path="/manager/reports" element={<M><ReportsPage /></M>} />

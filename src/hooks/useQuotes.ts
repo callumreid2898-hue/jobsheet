@@ -1,4 +1,5 @@
 import { useCachedQuery } from './useCachedQuery';
+import { FEATURES } from '../lib/features';
 import type { Quote, QuoteStatus } from '../types';
 
 export function useQuotes(options?: { siteId?: string; status?: QuoteStatus }) {
@@ -6,6 +7,6 @@ export function useQuotes(options?: { siteId?: string; status?: QuoteStatus }) {
     table: 'quotes',
     eq: { site_id: options?.siteId, status: options?.status },
     order: { column: 'created_at', ascending: false },
-  });
+  }, { enabled: FEATURES.quotes });
   return { quotes, isLoading, refetch };
 }

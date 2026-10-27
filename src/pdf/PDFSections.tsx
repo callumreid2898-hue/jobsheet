@@ -97,7 +97,7 @@ export function PDFJobInfoBar({ job, site, customer, engineer }: InfoBarProps) {
       <View style={pdfStyles.infoBarRow}>
         <View style={pdfStyles.infoBarItem}>
           <Text style={pdfStyles.infoBarLabel}>Site</Text>
-          <Text style={pdfStyles.infoBarValue}>{site.address}</Text>
+          <Text style={pdfStyles.infoBarValue}>{[...new Set([site.name, site.address].filter(Boolean))].join(', ')}</Text>
         </View>
         <View style={pdfStyles.infoBarItem}>
           <Text style={pdfStyles.infoBarLabel}>Customer</Text>

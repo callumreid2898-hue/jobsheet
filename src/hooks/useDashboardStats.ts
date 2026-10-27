@@ -7,6 +7,7 @@ import { useSites } from './useSites';
 import { jobStatusColors } from '../components/ui/statusColors';
 import { addDaysISO, localISODate } from '../lib/dates';
 import { isActiveJob } from '../lib/jobStatus';
+import { SYSTEM_TYPE_LABELS, contractDueState, dueLabel, type DueState } from '../lib/contracts';
 import type { Contract, Invoice, Job, JobStatus, Remedial, Site } from '../types';
 
 export interface JobsByStatusSlice {
@@ -33,6 +34,8 @@ export interface UpcomingVisit {
   siteAddress: string;
   systemType: string;
   nextDue: string; // ISO date
+  dueState: DueState;
+  dueText: string; // e.g. "Overdue by 3 days", "Due today"
 }
 
 export interface DashboardStats {
@@ -51,17 +54,11 @@ export interface DashboardStats {
   jobsLast30Days: JobsPerDay[];
   remedialsByPriority: RemedialPrioritySlice[];
   upcomingVisits: UpcomingVisit[];
+  upcomingVisitsMore: number;  // beyond the 8 shown
+  overdueVisits: number;
 
   isLoading: boolean;
 }
-
-const SYSTEM_TYPE_LABELS: Record<string, string> = {
-  fire_alarm:         'Fire Alarm',
-  emergency_lighting: 'Emergency Lighting',
-  cctv:               'CCTV',
-  intruder:           'Intruder',
-  access_control:     'Access Control',
-};
 
 interface StatsInput {
   jobs: Job[];
@@ -122,27 +119,34 @@ export function computeDashboardStats({ jobs: allJobs, remedials, contracts, inv
     ] satisfies RemedialPrioritySlice[]
   ).filter(s => s.count > 0);
 
-  // ── Upcoming PPM visits (next 90 days) ────────────────────
-  const siteMap = new Map(sites.map(s => [s.id, s.address]));
+  // ── PPM visits: overdue, then due in the next 90 days ──────
+  const siteMap = new Map(sites.map(s => [s.id, s.name]));
   const cutoffISO = addDaysISO(today, 90);
 
-  const upcomingVisits: UpcomingVisit[] = contracts
+  const allUpcoming: UpcomingVisit[] = contracts
     .filter(c => c.status === 'active' && c.next_visit_due && c.next_visit_due <= cutoffISO)
-    .sort((a, b) => (a.next_visit_due ?? '').localeCompare(b.next_visit_due ?? ''))
-    .slice(0, 8)
-    .map(c => ({
-      contractId:  c.id,
-      siteId:      c.site_id,
-      siteAddress: siteMap.get(c.site_id) ?? '—',
-      systemType:  SYSTEM_TYPE_LABELS[c.system_type] ?? c.system_type,
-      nextDue:     c.next_visit_due!,
-    }));
+    .sort((a, b) => a.next_visit_due!.localeCompare(b.next_visit_due!))
+    .map(c => {
+      const due = contractDueState(c, today);
+      return {
+        contractId:  c.id,
+        siteId:      c.site_id,
+        siteAddress: siteMap.get(c.site_id) ?? '—',
+        systemType:  SYSTEM_TYPE_LABELS[c.system_type] ?? c.system_type,
+        nextDue:     c.next_visit_due!,
+        dueState:    due.state,
+        dueText:     dueLabel(due),
+      };
+    });
+  const upcomingVisits = allUpcoming.slice(0, 8);
+  const upcomingVisitsMore = allUpcoming.length - upcomingVisits.length;
+  const overdueVisits = allUpcoming.filter(v => v.dueState === 'overdue').length;
 
   return {
     unassignedJobs, scheduledToday, awaitingReview,
     openRemedials, urgentRemedials, activeContracts,
     overdueInvoices, draftInvoices,
-    jobsByStatus, jobsLast30Days, remedialsByPriority, upcomingVisits,
+    jobsByStatus, jobsLast30Days, remedialsByPriority, upcomingVisits, upcomingVisitsMore, overdueVisits,
   };
 }
 

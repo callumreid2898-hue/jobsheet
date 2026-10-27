@@ -18,7 +18,7 @@ export function JobCard({ job, site, onClick }: Props) {
       onClick={onClick}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <p className="font-semibold text-gray-900 text-sm leading-snug flex-1">{site.address}</p>
+        <p className="font-semibold text-gray-900 text-sm leading-snug flex-1">{site.name}</p>
         <StatusPill status={job.status} />
       </div>
       <div className="flex items-center gap-2 flex-wrap">

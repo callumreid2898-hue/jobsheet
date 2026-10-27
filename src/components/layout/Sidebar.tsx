@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
+import { FEATURES, type Feature } from '../../lib/features';
 
 interface NavItem {
   to: string;
   label: string;
   icon: React.ReactNode;
   end?: boolean;
+  feature?: Feature;
 }
 
 const navItems: NavItem[] = [
@@ -69,6 +71,7 @@ const navItems: NavItem[] = [
   {
     to: '/manager/quotes',
     label: 'Quotes',
+    feature: 'quotes',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -78,6 +81,7 @@ const navItems: NavItem[] = [
   {
     to: '/manager/invoices',
     label: 'Invoices',
+    feature: 'invoices',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
@@ -165,7 +169,7 @@ export function Sidebar({ notificationCount = 0 }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-2">
-        {navItems.map(item => (
+        {navItems.filter(item => !item.feature || FEATURES[item.feature]).map(item => (
           <NavLink
             key={item.to}
             to={item.to}

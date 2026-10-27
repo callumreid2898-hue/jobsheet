@@ -13,9 +13,11 @@ interface FormEngineProps {
   readOnly?: boolean;
   onSave?: (answers: AnswersMap) => void;
   onSubmit?: (answers: AnswersMap) => void | Promise<void>;
+  /** Fills in answers at submit (e.g. departure time), before validation */
+  prepareSubmit?: (answers: AnswersMap) => AnswersMap;
 }
 
-export function FormEngine({ template, jobsheetId, companyId, readOnly = false, onSave, onSubmit }: FormEngineProps) {
+export function FormEngine({ template, jobsheetId, companyId, readOnly = false, onSave, onSubmit, prepareSubmit }: FormEngineProps) {
   const { answers, setAnswer, isSaving, saveError, flush } = useFormState(jobsheetId, template);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -34,15 +36,18 @@ export function FormEngine({ template, jobsheetId, companyId, readOnly = false, 
   void repeatCounts;
   const media = useMemo(() => ({ jobsheetId, companyId }), [jobsheetId, companyId]);
 
-  function validate(): boolean {
-    const newErrors = validateAnswers(template, answers);
+  function validate(toCheck: AnswersMap): boolean {
+    const newErrors = validateAnswers(template, toCheck);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
 
   async function handleSubmit() {
     if (isSubmitting) return;
-    if (!validate()) {
+    const final = prepareSubmit ? prepareSubmit(answers) : answers;
+    // Show what was filled in, even if something else still needs attention
+    for (const [id, v] of Object.entries(final)) if (v !== answers[id]) setAnswer(id, v);
+    if (!validate(final)) {
       // Scroll to first error
       setTimeout(() => {
         document.querySelector('[data-error="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -52,7 +57,7 @@ export function FormEngine({ template, jobsheetId, companyId, readOnly = false, 
     setIsSubmitting(true);
     try {
       await flush();
-      await onSubmit?.(answers);
+      await onSubmit?.(final);
     } finally {
       setIsSubmitting(false);
     }

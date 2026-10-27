@@ -6,35 +6,28 @@ import { useJobs } from '../../hooks/useJobs';
 import { useRemedials } from '../../hooks/useRemedials';
 import { useContracts } from '../../hooks/useContracts';
 import { useDevices } from '../../hooks/useDevices';
+import { useCachedQuery } from '../../hooks/useCachedQuery';
+import { useProfiles } from '../../hooks/useProfiles';
+import { openStorageFile } from '../../lib/media';
+import { formatUKDate } from '../../lib/dates';
+import { TEMPLATE_OPTIONS } from '../../templates/labels';
 import { RecordHeader } from '../../components/ui/RecordHeader';
 import { Tabs, useActiveTab } from '../../components/ui/Tabs';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
-import type { Site, Customer, RemedialPriority, ContractStatus } from '../../types';
+import type { Site, Customer, Job, Jobsheet, RemedialPriority } from '../../types';
+import { SYSTEM_TYPE_LABELS, CONTRACT_STATUS_CLASSES } from '../../lib/contracts';
 
 const TABS = [
   { id: 'overview',  label: 'Overview'  },
   { id: 'systems',   label: 'Systems'   },
   { id: 'jobs',      label: 'Jobs'      },
+  { id: 'jobsheets', label: 'Jobsheets' },
   { id: 'remedials', label: 'Remedials' },
   { id: 'contracts', label: 'Contracts' },
   { id: 'notes',     label: 'Notes'     },
 ];
-
-const SYSTEM_TYPE_LABELS: Record<string, string> = {
-  fire_alarm:         'Fire Alarm',
-  emergency_lighting: 'Emergency Lighting',
-  cctv:               'CCTV',
-  intruder:           'Intruder',
-  access_control:     'Access Control',
-};
-
-const CONTRACT_STATUS_CLASSES: Record<ContractStatus, string> = {
-  active:  'bg-green-100 text-green-700',
-  paused:  'bg-amber-100 text-amber-700',
-  expired: 'bg-red-100 text-red-700',
-};
 
 const REMEDIAL_PRIORITY_CLASSES: Record<RemedialPriority, string> = {
   urgent:      'bg-red-100 text-red-700',
@@ -54,6 +47,86 @@ function DetailField({ label, value }: { label: string; value: string | null | u
     <div>
       <dt className="text-xs font-medium text-slate-400 uppercase tracking-wide">{label}</dt>
       <dd className="mt-0.5 text-sm text-slate-800">{value}</dd>
+    </div>
+  );
+}
+
+/** The site's jobsheets, newest first, in a sub-section per sheet type */
+function SiteJobsheets({ siteJobs }: { siteJobs: Job[] }) {
+  const navigate = useNavigate();
+  const sheetType = useActiveTab('sheet', 'all');
+  const [openError, setOpenError] = useState<string | null>(null);
+  const { rows, isLoading } = useCachedQuery<Jobsheet>({
+    table: 'jobsheets', order: { column: 'updated_at', ascending: false },
+  });
+  const { profiles } = useProfiles({ includeInactive: true });
+
+  const jobById = useMemo(() => new Map(siteJobs.map(j => [j.id, j])), [siteJobs]);
+  const sheets = rows.filter(js => jobById.has(js.job_id));
+  const types = TEMPLATE_OPTIONS.filter(o => sheets.some(js => js.template_id === o.value));
+  const shown = sheetType === 'all' ? sheets : sheets.filter(js => js.template_id === sheetType);
+
+  async function openPdf(path: string) {
+    setOpenError(null);
+    try { await openStorageFile('pdfs', path); }
+    catch (err) { setOpenError(err instanceof Error ? err.message : String(err)); }
+  }
+
+  if (isLoading) return <div className="flex justify-center py-8"><Spinner /></div>;
+  if (sheets.length === 0) {
+    return <EmptyState heading="No jobsheets" description="Jobsheets appear here once an engineer starts one for this site." />;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <Tabs
+          tabs={[{ id: 'all', label: `All (${sheets.length})` }, ...types.map(o => ({
+            id: o.value, label: `${o.label} (${sheets.filter(js => js.template_id === o.value).length})`,
+          }))]}
+          paramName="sheet"
+          defaultTab="all"
+        />
+      </div>
+      {openError && <p className="text-xs text-red-600" role="alert">Couldn't open the PDF: {openError}</p>}
+      {shown.length === 0 ? (
+        <EmptyState heading="None of this type" description="No jobsheets of this type for this site." />
+      ) : (
+        <ul className="space-y-2">
+          {shown.map(js => {
+            const job = jobById.get(js.job_id)!;
+            const engineer = profiles.find(p => p.id === job.assigned_engineer_id)?.full_name;
+            const label = TEMPLATE_OPTIONS.find(o => o.value === js.template_id)?.label ?? js.template_id;
+            return (
+              <li key={js.id} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
+                <button
+                  onClick={() => navigate(`/manager/jobs/${job.id}?tab=jobsheet`)}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <p className="text-sm font-medium text-slate-800 truncate">{label}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {formatDate(job.scheduled_date)}{engineer ? ` · ${engineer}` : ''}{job.call_no ? ` · Call ${job.call_no}` : ''}
+                  </p>
+                </button>
+                {js.submitted_at ? (
+                  js.pdf_path ? (
+                    <button
+                      onClick={() => openPdf(js.pdf_path!)}
+                      className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0D3349] text-white hover:bg-[#0a2738]"
+                    >
+                      PDF
+                    </button>
+                  ) : (
+                    <span className="shrink-0 text-xs text-slate-400">Submitted {formatUKDate(js.submitted_at)} · PDF pending</span>
+                  )
+                ) : (
+                  <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">In progress</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
@@ -116,7 +189,7 @@ export function SiteDetailPage() {
   return (
     <div className="flex flex-col min-h-0">
       <RecordHeader
-        title={site.address}
+        title={site.name}
         subtitle={customer?.name}
         backHref="/manager/sites"
         onBack={() => navigate('/manager/sites')}
@@ -130,10 +203,17 @@ export function SiteDetailPage() {
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium text-slate-400 uppercase tracking-wide">Address</dt>
-                  <dd className="mt-0.5 text-sm text-slate-800">{site.address}</dd>
-                </div>
+                <DetailField label="Address"       value={site.address} />
+                {site.job_codes?.length > 0 && (
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs font-medium text-slate-400 uppercase tracking-wide">Job codes</dt>
+                    <dd className="mt-1 flex flex-wrap gap-1.5">
+                      {site.job_codes.map(code => (
+                        <span key={code} className="text-xs font-mono font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-700">{code}</span>
+                      ))}
+                    </dd>
+                  </div>
+                )}
                 {customer && (
                   <div className="sm:col-span-2">
                     <dt className="text-xs font-medium text-slate-400 uppercase tracking-wide">Customer</dt>
@@ -147,6 +227,7 @@ export function SiteDetailPage() {
                     </dd>
                   </div>
                 )}
+                <DetailField label="Client No"     value={site.client_no} />
                 <DetailField label="Contact"       value={site.contact_name ? `${site.contact_name}${site.contact_phone ? ' · ' + site.contact_phone : ''}` : site.contact_phone} />
                 <DetailField label="Access Notes"  value={site.access_notes} />
                 <DetailField label="ARC Name"      value={site.arc_name} />
@@ -245,6 +326,9 @@ export function SiteDetailPage() {
             )}
           </>
         )}
+
+        {/* ── Jobsheets ────────────────────────────────────────── */}
+        {activeTab === 'jobsheets' && <SiteJobsheets siteJobs={siteJobs} />}
 
         {/* ── Remedials ────────────────────────────────────────── */}
         {activeTab === 'remedials' && (

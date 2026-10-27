@@ -10,8 +10,8 @@
       "title": "Test Details",
       "fields": [
         {"id": "test_type", "type": "select", "label": "Test type", "required": true, "options": ["Monthly functional test", "Annual duration test", "Partial duration test"]},
-        {"id": "test_date", "type": "text", "label": "Test date (DD/MM/YYYY)", "required": true},
-        {"id": "engineer_name", "type": "text", "label": "Engineer name"}
+        {"id": "test_date", "type": "text", "label": "Test date (DD/MM/YYYY)", "required": true, "prefill": "date"},
+        {"id": "engineer_name", "type": "text", "label": "Engineer name", "prefill": "engineer_name"}
       ]
     },
     {

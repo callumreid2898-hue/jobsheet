@@ -53,6 +53,8 @@ In a `writeRecords` batch each write waits for the ones before it (parent before
 - Remedial auto-detection: `detectRemedials(template, answers, jobsheetId, siteId, companyId)` — pure function, safe to call any time.
 - Ids that can be created twice are deterministic (`src/lib/ids.ts`): `jobsheetIdFor(jobId)`, `remedialIdFor(...)` (used by `detectRemedials`, so a re-run gives the same rows).
 - Validation lives in `src/form-engine/validation.ts`; repeatable-section errors are keyed by `instanceErrorKey(section, index, field)`.
+- Pre-fill: a template field with `"prefill": <PrefillKey>` (`src/templates/types.ts`) is filled from the job by `prefillAnswers()` (`src/lib/jobsheetPrefill.ts`) when `FillJobsheetPage` creates the jobsheet: site, date, call/client no., visit type, reported fault, engineer, system, arrival/travel times. `departure_time` / `time_taken` are filled at submit by `fillSubmitAnswers()` (FormEngine `prepareSubmit`, before validation). Neither overwrites what the engineer typed.
+- Managers set `jobs.call_no`, `jobs.client_no` (defaults to `sites.client_no`; the first one given becomes the site's) and an optional `jobs.reported_fault` on New Job (00015). The site's Jobsheets tab lists its sheets with a sub-tab per template (`?sheet=`). Template labels: `TEMPLATE_OPTIONS` in `src/templates/labels.ts`.
 
 ### Jobs and dates
 
@@ -60,6 +62,13 @@ In a `writeRecords` batch each write waits for the ones before it (parent before
 - Manager status rules are in `jobStatus.ts` too: `isPlannable()` (only unassigned/scheduled jobs can be moved or reassigned), `statusAfterAssign()` (assigning schedules, unassigning un-schedules), `managerActions()` (review / invoice / cancel). Creating an invoice for a job sets it to `invoiced` in the same `writeRecords` batch; the invoice job picker only offers `reviewed` jobs.
 - Planner maths (durations, `findClashes`, `movePatch`) is in `src/lib/planner.ts`; `duration_minutes` null means 60.
 - Every job creation, status change and reassignment is logged to `audit_log` by a trigger (00012); the job's History tab is `buildTimeline()` in `src/lib/jobTimeline.ts`.
+
+### PPM contracts
+
+- Rules live in `src/lib/contracts.ts`: labels, `PPM_TEMPLATE`, `advanceDue()` (must match `next_due_date()` in 00014), `contractDueState()` / `dueLabel()` (overdue / due today / due soon ≤30 days). Compare calendar dates with `daysBetween()`, never `Date` maths.
+- A visit's job is made by the `generate_visit_job(contract, date, engineer?, template?)` RPC. It's idempotent per visit, manager-only and online-only.
+- When that job reaches awaiting_review/completed/reviewed/invoiced, a trigger completes the visit and moves `next_visit_due` on (from the visit date, keeping `start_date`'s day of month; never backwards; null after `end_date`). Cancelling the job frees the visit.
+- One visit per contract per date (unique).
 - Calendar dates (`scheduled_date` etc.) come from `localISODate()` / `addDaysISO()` in `src/lib/dates.ts`. Never use `toISOString()` for a date: it's UTC, an hour behind in BST.
 - When caching fetched rows, use `mergeServerRows()` so rows with unsynced local changes aren't overwritten (only `useJobs` so far).
 
@@ -105,6 +114,16 @@ In a `writeRecords` batch each write waits for the ones before it (parent before
 - Hooks: camelCase prefixed with `use` (e.g., `useJobs.ts`).
 - UI components: PascalCase (e.g., `Button.tsx`).
 - Templates: snake_case JSON (e.g., `fire_alarm_service.json`).
+
+### Sites
+
+- A site has a `name` (its title everywhere, e.g. "250 St Vincent St (250 SVS)"), an `address` (`''` when unknown) and `job_codes text[]` (Emtec codes, e.g. `FS1178`, `FS1178/4`; several per site) — 00016. Show `site.name`, not `site.address`, as a site's label. Inserts without a name take the address (trigger).
+- `supabase/scripts/emtec_staff_invites.sql` adds Emtec's staff as pending invites (claimed on first sign-in; non-destructive, re-runnable).
+- `supabase/scripts/emtec_reset_and_import.sql` is a one-off: wipes one company's business data and loads Emtec's 49 sites (tested in `tests/db/emtecImport.test.ts`).
+
+### Switched-off features
+
+- `FEATURES` in `src/lib/features.ts` turns parts of the app off without deleting them. Quotes and invoices are off: no menu items, routes, dashboard tiles, report tab, search results, "Create invoice" button or `invoiced`/`quoted` filter options, and `useQuotes`/`useInvoices` fetch nothing. Their pages, hooks and tables are kept; gate any new entry point on the flag.
 
 ## Multi-Tenancy
 

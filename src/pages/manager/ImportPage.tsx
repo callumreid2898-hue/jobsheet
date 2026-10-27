@@ -319,7 +319,9 @@ export function ImportPage() {
         id:            crypto.randomUUID(),
         company_id:    profile.company_id,
         customer_id:   customer.id,
+        name:          getMapped(mapping, headers, row, 'name') || address,
         address,
+        job_codes:     (getMapped(mapping, headers, row, 'job_codes') || '').split(',').map(c => c.trim()).filter(Boolean),
         contact_name:  getMapped(mapping, headers, row, 'contact_name') || null,
         contact_phone: getMapped(mapping, headers, row, 'contact_phone') || null,
         access_notes:  getMapped(mapping, headers, row, 'access_notes') || null,
@@ -328,6 +330,7 @@ export function ImportPage() {
         police_urn:    getMapped(mapping, headers, row, 'police_urn') || null,
         hazards:       getMapped(mapping, headers, row, 'hazards') || null,
         keyholders:    [],
+        client_no:     null,
         created_at:    new Date().toISOString(),
       };
       await db.sites.put(site);
@@ -437,7 +440,7 @@ export function ImportPage() {
       {activeTab === 'sites' && (
         <ImportTab
           requiredFields={['customer_name', 'address']}
-          fieldOptions={['customer_name', 'address', 'contact_name', 'contact_phone', 'access_notes', 'arc_name', 'arc_account', 'police_urn', 'hazards']}
+          fieldOptions={['customer_name', 'name', 'address', 'job_codes', 'contact_name', 'contact_phone', 'access_notes', 'arc_name', 'arc_account', 'police_urn', 'hazards']}
           onConfirm={handleImportSites}
         />
       )}

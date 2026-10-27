@@ -1,4 +1,5 @@
 import type { Remedial, Site, RemedialStatus } from '../types';
+import { FEATURES } from '../lib/features';
 import { Badge } from './ui/Badge';
 
 interface Props { remedial: Remedial; site: Site; onStatusChange?: (status: RemedialStatus) => void; }
@@ -14,7 +15,7 @@ export function RemedialRow({ remedial, site, onStatusChange }: Props) {
         <Badge label={remedial.priority} color={priorityColors[remedial.priority] ?? 'gray'} />
         <p className="text-sm text-gray-800 flex-1">{remedial.description}</p>
       </div>
-      <p className="text-xs text-gray-500 mb-2">{site.address}</p>
+      <p className="text-xs text-gray-500 mb-2">{site.name}</p>
       {onStatusChange ? (
         <select
           value={remedial.status}
@@ -22,7 +23,7 @@ export function RemedialRow({ remedial, site, onStatusChange }: Props) {
           className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-600 bg-white"
         >
           <option value="open">Open</option>
-          <option value="quoted">Quoted</option>
+          {(FEATURES.quotes || remedial.status === 'quoted') && <option value="quoted">Quoted</option>}
           <option value="done">Done</option>
         </select>
       ) : (

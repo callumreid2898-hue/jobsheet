@@ -20,7 +20,7 @@ export function CreateSitePage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     customer_id: '', new_customer_name: '',
-    address: '', contact_name: '', contact_phone: '', access_notes: '',
+    name: '', address: '', job_codes: '', client_no: '', contact_name: '', contact_phone: '', access_notes: '',
     system_type: 'fire_alarm' as SystemType, system_make: '', system_model: '', panel_location: '',
   });
 
@@ -45,9 +45,12 @@ export function CreateSitePage() {
 
     const site: Site = {
       id: crypto.randomUUID(), company_id: profile.company_id, customer_id: customerId,
-      address: form.address, contact_name: form.contact_name || null,
+      name: form.name.trim(), address: form.address.trim(),
+      job_codes: form.job_codes.split(',').map(c => c.trim()).filter(Boolean),
+      contact_name: form.contact_name || null,
       contact_phone: form.contact_phone || null, access_notes: form.access_notes || null,
       arc_name: null, arc_account: null, police_urn: null, hazards: null, keyholders: [],
+      client_no: form.client_no.trim() || null,
       created_at: new Date().toISOString(),
     };
     writes.push({ table: 'sites', op: 'insert', row: { ...site } });
@@ -85,8 +88,22 @@ export function CreateSitePage() {
           )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Site address <span className="text-red-500">*</span></label>
-          <input required type="text" value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <label className="block text-sm font-medium text-gray-700 mb-1">Site name <span className="text-red-500">*</span></label>
+          <input required type="text" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="e.g. 250 St Vincent St (250 SVS)" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+          <input type="text" value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Client No</label>
+          <input type="text" value={form.client_no} onChange={e => setForm(f => ({...f, client_no: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <p className="text-xs text-gray-500 mt-1">Filled in on this site's jobsheets.</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Job codes</label>
+          <input type="text" value={form.job_codes} onChange={e => setForm(f => ({...f, job_codes: e.target.value}))} placeholder="e.g. FS1178, FS1178/4" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <p className="text-xs text-gray-500 mt-1">Separate with commas.</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

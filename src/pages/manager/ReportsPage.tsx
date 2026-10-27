@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { FEATURES } from '../../lib/features';
 import { DataTable, type Column } from '../../components/ui/DataTable';
 import { Tabs, useActiveTab } from '../../components/ui/Tabs';
 import { StatusPill } from '../../components/ui/StatusPill';
@@ -20,6 +21,11 @@ import type {
   ContractStatus,
   RemedialPriority,
 } from '../../types';
+import {
+  CONTRACT_STATUS_CLASSES, DUE_STATE_CLASSES, FREQUENCY_LABELS, SYSTEM_TYPE_LABELS,
+  contractDueState, dueLabel, formatISODate,
+} from '../../lib/contracts';
+import { localISODate } from '../../lib/dates';
 
 // ─── Synthetic row types for tabs that build derived data ─────────────────────
 
@@ -38,7 +44,7 @@ const tabDefs = [
   { id: 'jobs',       label: 'Jobs Summary'    },
   { id: 'remedials',  label: 'Open Remedials'  },
   { id: 'ppm',        label: 'PPM Schedule'    },
-  { id: 'invoices',   label: 'Invoice Ageing'  },
+  ...(FEATURES.invoices ? [{ id: 'invoices', label: 'Invoice Ageing' }] : []),
   { id: 'activity',   label: 'Site Activity'   },
 ];
 
@@ -290,7 +296,8 @@ function PPMTab({
   const filtered = useMemo(() => {
     return contracts.filter(c => {
       if (statusFilter && c.status !== statusFilter) return false;
-      if (dueBefore && c.next_visit_due && c.next_visit_due > dueBefore) return false;
+      // "Due before" only matches contracts that have a date
+      if (dueBefore && (!c.next_visit_due || c.next_visit_due > dueBefore)) return false;
       return true;
     });
   }, [contracts, statusFilter, dueBefore]);
@@ -308,21 +315,29 @@ function PPMTab({
       header: 'System Type',
       sortable: true,
       getValue: (c) => c.system_type,
-      render: (c) => <span className="capitalize">{c.system_type.replace(/_/g, ' ')}</span>,
+      render: (c) => <span>{SYSTEM_TYPE_LABELS[c.system_type] ?? c.system_type}</span>,
     },
     {
       key: 'visit_frequency',
       header: 'Frequency',
       sortable: true,
       getValue: (c) => c.visit_frequency,
-      render: (c) => <span className="capitalize">{c.visit_frequency}</span>,
+      render: (c) => <span>{FREQUENCY_LABELS[c.visit_frequency] ?? c.visit_frequency}</span>,
     },
     {
       key: 'next_visit_due',
       header: 'Next Due',
       sortable: true,
       getValue: (c) => c.next_visit_due ?? '',
-      render: (c) => <span>{c.next_visit_due ?? '—'}</span>,
+      render: (c) => {
+        const due = contractDueState(c, localISODate());
+        return (
+          <span>
+            {c.next_visit_due ? formatISODate(c.next_visit_due) : '—'}
+            {c.status === 'active' && <span className={`ml-2 text-xs ${DUE_STATE_CLASSES[due.state]}`}>{dueLabel(due)}</span>}
+          </span>
+        );
+      },
     },
     {
       key: 'status',
@@ -330,13 +345,8 @@ function PPMTab({
       sortable: true,
       getValue: (c) => c.status,
       render: (c) => {
-        const colours: Record<ContractStatus, string> = {
-          active:  'bg-green-100 text-green-700',
-          paused:  'bg-amber-100 text-amber-700',
-          expired: 'bg-red-100 text-red-700',
-        };
         return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${colours[c.status]}`}>
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${CONTRACT_STATUS_CLASSES[c.status]}`}>
             {c.status}
           </span>
         );
@@ -574,7 +584,7 @@ export function ReportsPage() {
     customersLoading || contractsLoading || invoicesLoading || profilesLoading;
 
   // Build lookup maps
-  const siteMap     = useMemo(() => new Map(sites.map(s => [s.id, s.address])),        [sites]);
+  const siteMap     = useMemo(() => new Map(sites.map(s => [s.id, s.name])),        [sites]);
   const customerMap = useMemo(() => new Map(customers.map(c => [c.id, c.name])),       [customers]);
   const profileMap  = useMemo(() => new Map(profiles.map(p => [p.id, p.full_name])),   [profiles]);
 
@@ -610,7 +620,7 @@ export function ReportsPage() {
 
       return {
         id:               site.id,
-        site_name:        site.address,
+        site_name:        site.name,
         customer_name:    customerMap.get(site.customer_id) ?? '—',
         last_job_date:    lastJobDate,
         open_remedials:   openRemedials,
@@ -652,7 +662,7 @@ export function ReportsPage() {
               siteMap={siteMap}
             />
           )}
-          {activeTab === 'invoices' && (
+          {FEATURES.invoices && activeTab === 'invoices' && (
             <InvoicesTab
               invoices={invoices}
               customerMap={customerMap}

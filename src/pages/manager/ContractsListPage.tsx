@@ -3,34 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useContracts } from '../../hooks/useContracts';
 import { useSites } from '../../hooks/useSites';
 import { Spinner } from '../../components/ui/Spinner';
+import { localISODate } from '../../lib/dates';
+import {
+  CONTRACT_STATUS_CLASSES, DUE_STATE_CLASSES, FREQUENCY_LABELS, SYSTEM_TYPE_LABELS,
+  contractDueState, dueLabel, formatISODate,
+} from '../../lib/contracts';
 import type { ContractStatus } from '../../types';
-
-const SYSTEM_TYPE_LABELS: Record<string, string> = {
-  fire_alarm: 'Fire Alarm',
-  emergency_lighting: 'Emergency Lighting',
-  cctv: 'CCTV',
-  intruder: 'Intruder',
-  access_control: 'Access Control',
-};
-
-const FREQUENCY_LABELS: Record<string, string> = {
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  biannual: 'Bi-annual',
-  annual: 'Annual',
-};
-
-const statusChipClass: Record<ContractStatus, string> = {
-  active:  'bg-green-100 text-green-700',
-  paused:  'bg-amber-100 text-amber-700',
-  expired: 'bg-red-100 text-red-700',
-};
-
-function formatDate(iso: string | null): string {
-  if (!iso) return 'Not set';
-  const [year, month, day] = iso.split('-');
-  return `${day}/${month}/${year}`;
-}
 
 export function ContractsListPage() {
   const navigate = useNavigate();
@@ -38,6 +16,7 @@ export function ContractsListPage() {
   const { contracts, isLoading } = useContracts({ status: statusFilter || undefined });
   const { sites } = useSites();
   const siteMap = new Map(sites.map(s => [s.id, s]));
+  const today = localISODate();
 
   return (
     <div className="px-4 pt-6 pb-6">
@@ -79,7 +58,7 @@ export function ContractsListPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-medium text-gray-900 truncate text-sm">
-                      {site?.address ?? 'Unknown site'}
+                      {site?.name ?? 'Unknown site'}
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {SYSTEM_TYPE_LABELS[contract.system_type] ?? contract.system_type}
@@ -87,10 +66,14 @@ export function ContractsListPage() {
                       {FREQUENCY_LABELS[contract.visit_frequency] ?? contract.visit_frequency}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">
-                      Next visit: {formatDate(contract.next_visit_due)}
+                      Next visit: {formatISODate(contract.next_visit_due)}
+                      {contract.status === 'active' && (() => {
+                        const due = contractDueState(contract, today);
+                        return <span className={`ml-2 font-medium ${DUE_STATE_CLASSES[due.state]}`}>{dueLabel(due)}</span>;
+                      })()}
                     </p>
                   </div>
-                  <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusChipClass[contract.status]}`}>
+                  <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${CONTRACT_STATUS_CLASSES[contract.status]}`}>
                     {contract.status}
                   </span>
                 </div>

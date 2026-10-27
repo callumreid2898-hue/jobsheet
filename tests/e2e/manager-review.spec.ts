@@ -21,7 +21,7 @@ function fixtures(): Record<string, Row[]> {
     ],
     companies: [{ id: CO, name: 'Test Fire Ltd' }],
     customers: [{ id: CUST, company_id: CO, name: 'Acme Offices' }],
-    sites: [{ id: SITE, company_id: CO, customer_id: CUST, address: '1 Test Street', keyholders: [] }],
+    sites: [{ id: SITE, company_id: CO, customer_id: CUST, name: '1 Test Street', address: '1 Test Street', job_codes: [], keyholders: [] }],
     jobs: [{
       id: JOB, company_id: CO, site_id: SITE, system_id: null, type: 'reactive_callout', template_id: 'reactive_callout',
       assigned_engineer_id: ENG, scheduled_date: today, scheduled_time: '09:00', duration_minutes: 60,
@@ -38,8 +38,8 @@ function fixtures(): Record<string, Row[]> {
 
 test.use({ serviceWorkers: 'block', timezoneId: 'Europe/London' });
 
-test('manager: review a submitted job, invoice it, job becomes invoiced', async ({ page }) => {
-  const { db, writes } = await fakeSupabase(page, fixtures());
+test('manager: review a submitted job; quotes and invoices are switched off', async ({ page }) => {
+  const { writes } = await fakeSupabase(page, fixtures());
   await signIn(page, MGR_USER, 'mgr@test.local');
   const jobPatches = () => writes.filter(w => w.method === 'PATCH' && w.table === 'jobs').map(w => w.body);
 
@@ -61,20 +61,14 @@ test('manager: review a submitted job, invoice it, job becomes invoiced', async 
   await expect(page.getByTestId('job-timeline')).toContainText('Jobsheet submitted');
   await expect(page.getByTestId('job-timeline')).toContainText('Job created');
 
-  // Invoice from the job: picker prefilled with the reviewed job
-  await page.getByRole('button', { name: 'Create invoice' }).click();
-  await expect(page).toHaveURL(new RegExp(`/manager/invoices/create\\?job=${JOB}$`));
-  await expect(page.locator('select').filter({ has: page.locator(`option[value="${JOB}"]`) })).toHaveValue(JOB);
-  await page.getByPlaceholder(/description/i).first().fill('Callout labour');
-  await page.getByRole('button', { name: 'Create Invoice' }).click();
-
-  // Invoice row first, then the job moves to invoiced
-  await expect.poll(() => db.invoices?.length ?? 0).toBe(1);
-  expect(db.invoices[0]).toMatchObject({ job_id: JOB, customer_id: CUST, site_id: SITE });
-  await expect.poll(jobPatches).toEqual([{ status: 'reviewed' }, { status: 'invoiced' }]);
-  const order = writes.map(w => `${w.method}:${w.table}`);
-  expect(order.indexOf('POST:invoices')).toBeLessThan(order.lastIndexOf('PATCH:jobs'));
-  expect(db.jobs[0].status).toBe('invoiced');
+  // Invoicing is switched off (src/lib/features.ts): no button, no menu items, no pages
+  await expect(page.getByRole('button', { name: 'Create invoice' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Invoices' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Quotes' })).toHaveCount(0);
+  await page.goto('/manager/invoices');
+  await expect(page).not.toHaveURL(/invoices/);
+  await page.goto('/manager/quotes/create');
+  await expect(page).not.toHaveURL(/quotes/);
 });
 
 test('the Sites list opens a site, and legacy URLs go up one level', async ({ page }) => {
@@ -110,12 +104,16 @@ test('planner: dragging an unassigned job onto an engineer schedules it and it s
 
   // Drop on Eng One's 10:00 slot (dnd-kit needs real pointer movement)
   const slot = page.locator('div.flex-shrink-0.w-44').filter({ hasText: 'Eng One' }).locator('div.relative.p-1').nth(2);
+  // Let late-loading data settle so the slot doesn't move after it's measured
+  await page.waitForLoadState('networkidle');
   const from = (await card.boundingBox())!;
   const to = (await slot.boundingBox())!;
   await page.mouse.move(from.x + 20, from.y + 10);
   await page.mouse.down();
   await page.mouse.move(from.x + 40, from.y + 20, { steps: 5 });
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 15 });
+  // Release only once dnd-kit has caught up and highlights the slot (as a person would)
+  await expect(slot).toHaveClass(/ring-blue-300/);
   await page.mouse.up();
 
   await expect.poll(() => writes.filter(w => w.method === 'PATCH').map(w => w.body)).toEqual([

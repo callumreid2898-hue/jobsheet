@@ -130,7 +130,7 @@ export function QuoteDetailPage() {
           {cfg.label}
         </span>
       </div>
-      <p className="text-sm text-gray-500 mb-4">{site?.address ?? 'Unknown site'}</p>
+      <p className="text-sm text-gray-500 mb-4">{site?.name ?? 'Unknown site'}</p>
       {quote.notes && (
         <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-4 py-3 mb-4">{quote.notes}</p>
       )}
