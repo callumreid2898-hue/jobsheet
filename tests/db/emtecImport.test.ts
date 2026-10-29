@@ -35,7 +35,7 @@ describe('emtec_reset_and_import.sql', () => {
   let db: PGlite;
   beforeAll(async () => {
     db = await createDb();
-    await seedCompany(db, EMTEC, 'Emtec Fire Systems', 'a');
+    await seedCompany(db, EMTEC, 'Emtec Fire', 'a');
     await seedCompany(db, OTHER, 'Other Co', 'b');
     await db.exec(SCRIPT);
   }, 60_000);
@@ -71,7 +71,7 @@ describe('emtec_reset_and_import.sql', () => {
   it('changes nothing when the company name doesn\'t match', async () => {
     const other = await createDb();
     await seedCompany(other, OTHER, 'Other Co', 'b');
-    await expect(other.exec(SCRIPT)).rejects.toThrow(/No company named "Emtec Fire Systems"\. Companies here: "Other Co"/);
+    await expect(other.exec(SCRIPT)).rejects.toThrow(/No company named "Emtec Fire"\. Companies here: "Other Co"/);
     expect(await count(other, 'sites', OTHER)).toBe(1);
   }, 60_000);
 });
@@ -84,7 +84,7 @@ describe('emtec_staff_invites.sql', () => {
 
   beforeAll(async () => {
     db = await createDb();
-    await db.exec(`insert into companies (id, name) values ('${EMTEC}', 'Emtec Fire Systems')`);
+    await db.exec(`insert into companies (id, name) values ('${EMTEC}', 'Emtec Fire')`);
     // Already in the team, signed in with the googlemail spelling of their gmail address
     await db.exec(`
       insert into auth.users (id, email) values ('00000000-0000-4000-8000-0000000000c1', 'callumreid2898@googlemail.com');

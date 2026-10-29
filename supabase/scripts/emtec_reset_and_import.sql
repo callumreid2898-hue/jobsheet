@@ -16,7 +16,7 @@
 
 do $$
 declare
-  company_name constant text := 'Emtec Fire Systems';  -- ← your company's name in the app
+  company_name constant text := 'Emtec Fire';  -- ← your company's name in the app
   v_company uuid;
   n_customers int;
   n_sites int;
