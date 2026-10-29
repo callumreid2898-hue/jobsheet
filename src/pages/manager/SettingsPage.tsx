@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { writeRecord } from '../../lib/writeRecord';
 import { useAuth } from '../../auth/AuthProvider';
+import { SetPasswordForm } from '../../auth/SetPasswordForm';
 
 export function SettingsPage() {
   const { company, profile } = useAuth();
@@ -37,6 +38,9 @@ export function SettingsPage() {
           {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save Settings'}
         </button>
       </form>
+      <div className="mt-8 border-t border-gray-200 pt-4">
+        <SetPasswordForm />
+      </div>
     </div>
   );
 }

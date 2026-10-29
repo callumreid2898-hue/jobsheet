@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '../../auth/AuthProvider';
+import { SetPasswordForm } from '../../auth/SetPasswordForm';
 import { useOnline } from '../../lib/useOnline';
 import { useSync } from '../../offline/useSync';
 import { discardItem, getVisibleQueue, retryItem } from '../../lib/syncEngine';
@@ -136,6 +137,10 @@ export function SyncIssuesPage() {
       )}
 
       <div className="mt-8 border-t border-slate-200 pt-4">
+        <SetPasswordForm />
+      </div>
+
+      <div className="mt-6 border-t border-slate-200 pt-4">
         {session?.user.email && (
           <p className="text-xs text-slate-500 mb-2">Signed in as {session.user.email}</p>
         )}

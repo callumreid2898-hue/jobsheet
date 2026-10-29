@@ -1,13 +1,44 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { useAuth } from './AuthProvider';
+
+const inputClass = 'w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0D3349]';
+const buttonClass = 'w-full bg-[#0D3349] text-white font-semibold py-3 rounded-xl text-base hover:bg-[#0f3d57] active:bg-[#0D3349] disabled:opacity-60';
 
 export function LoginPage() {
+  const { refreshProfile } = useAuth();
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<'password' | 'link'>('password');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  async function handleSubmit(e: React.FormEvent) {
+  function switchMode(to: 'password' | 'link') {
+    setMode(to);
+    setError('');
+  }
+
+  async function handlePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    if (err) {
+      setLoading(false);
+      setError(err.message === 'Invalid login credentials'
+        ? "Wrong email or password. If you haven't set a password yet, use a sign-in link."
+        : err.message);
+      return;
+    }
+    // The auth event has started loading the profile; wait so the callback routes by role
+    await refreshProfile().catch(() => {});
+    navigate('/auth/callback', { replace: true });
+  }
+
+  async function handleLink(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -20,6 +51,22 @@ export function LoginPage() {
     if (err) { setError(err.message); return; }
     setSent(true);
   }
+
+  const emailField = (
+    <div className="mb-4">
+      <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+      <input
+        id="login-email"
+        type="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+        required
+        autoComplete="email"
+        placeholder="you@example.com"
+        className={inputClass}
+      />
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
@@ -41,27 +88,41 @@ export function LoginPage() {
               Try a different email
             </button>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        ) : mode === 'password' ? (
+          <form onSubmit={handlePassword} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            {emailField}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+              <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
               <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                id="login-password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
                 required
-                autoComplete="email"
-                placeholder="you@example.com"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0D3349]"
+                autoComplete="current-password"
+                className={inputClass}
               />
             </div>
             {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#0D3349] text-white font-semibold py-3 rounded-xl text-base hover:bg-[#0f3d57] active:bg-[#0D3349] disabled:opacity-60"
-            >
-              {loading ? 'Sending…' : 'Send magic link'}
+            <button type="submit" disabled={loading} className={buttonClass}>
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+            <button type="button" onClick={() => switchMode('link')} className="w-full mt-4 text-sm text-slate-600 underline">
+              Email me a sign-in link instead
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleLink} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            {emailField}
+            {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+            <button type="submit" disabled={loading} className={buttonClass}>
+              {loading ? 'Sending…' : 'Send sign-in link'}
+            </button>
+            <p className="text-xs text-slate-500 mt-3 text-center">
+              Forgotten your password? Sign in with a link, then set a new one.
+            </p>
+            <button type="button" onClick={() => switchMode('password')} className="w-full mt-3 text-sm text-slate-600 underline">
+              Sign in with a password instead
             </button>
           </form>
         )}

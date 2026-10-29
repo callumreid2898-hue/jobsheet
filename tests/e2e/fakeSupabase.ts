@@ -112,18 +112,23 @@ export async function fakeSupabase(page: Page, db: Record<string, Row[]>, rpcs: 
   return { db, writes, uploads };
 }
 
-/** Puts a session for `userId` in localStorage before the app loads. */
-export async function signIn(page: Page, userId: string, email: string) {
+/** A session for `userId`, shaped like the token endpoint's response. */
+export function fakeSession(userId: string, email: string) {
   const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
   const exp = Math.floor(Date.now() / 1000) + 3600;
   const token = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: userId, role: 'authenticated', exp })}.sig`;
-  const session = {
+  return {
     access_token: token, token_type: 'bearer', expires_in: 3600, expires_at: exp, refresh_token: 'refresh',
     user: {
       id: userId, aud: 'authenticated', role: 'authenticated', email,
       app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
     },
   };
+}
+
+/** Puts a session for `userId` in localStorage before the app loads. */
+export async function signIn(page: Page, userId: string, email: string) {
+  const session = fakeSession(userId, email);
   await page.addInitScript(([key, value]) => {
     if (!localStorage.getItem(key)) localStorage.setItem(key, value);
   }, [STORAGE_KEY, JSON.stringify(session)] as const);

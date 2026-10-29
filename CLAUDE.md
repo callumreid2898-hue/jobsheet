@@ -101,6 +101,7 @@ In a `writeRecords` batch each write waits for the ones before it (parent before
 ### Routing & Auth
 
 - `<AuthProvider>` wraps the entire app in `App.tsx`. It always re-reads the user's own profile when online (`resolveProfile()` in `src/auth/resolveProfile.ts`): it claims a pending invite if there's no profile, and wipes local data if the profile was removed (`active = false`). Its `access` is `ok` / `none` (onboarding) / `removed` / `offline`.
+- Login (`LoginPage`) is email + password (`signInWithPassword`, then `/auth/callback` routes by role); "Email me a sign-in link instead" uses `signInWithOtp` with `shouldCreateUser: false`. Anyone signed in can set or change their password with `<SetPasswordForm>` (`/sync`, `/manager/sync`, manager Settings; online only).
 - `AuthGuard` renders `OnboardingPage` instead of the route unless `access === 'ok'`: "Create your company" (`create_company_and_manager` RPC), "access removed", or "offline".
 - Team (`/manager/team`): invites go through the `invite-user` Edge Function (`supabase/functions/invite-user`). If it isn't deployed, the invite row is saved and the login is sent from the dashboard. `remove_member` / `restore_member` / `set_member_role` RPCs (00013); removing hands the member's unfinished jobs back to Unassigned. Team changes are online-only (not queued).
 - `useProfiles()` hides removed members unless `includeInactive` is set.
