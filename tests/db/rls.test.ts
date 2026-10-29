@@ -477,3 +477,61 @@ describe('PPM engine (00014)', () => {
   });
 });
 
+
+describe('devices (00017)', () => {
+  const SITE_A = '00000000-0000-0000-0005-00000000000a';
+  const SITE_B = '00000000-0000-0000-0005-00000000000b';
+  const DEV_A = '00000000-0000-0000-0009-00000000000a';
+  const DEV_B = '00000000-0000-0000-0009-00000000000b';
+  const testSql = (id: string, device: string, jobsheet: string | null, company = CO_A) =>
+    `insert into device_tests (id, device_id, jobsheet_id, company_id, result)
+     values ('${id}', '${device}', ${jobsheet ? `'${jobsheet}'` : 'null'}, '${company}', 'pass')`;
+
+  beforeAll(async () => {
+    await db.exec(`
+      insert into devices (id, site_id, company_id, type) values
+        ('${DEV_A}', '${SITE_A}', '${CO_A}', 'smoke_detector'),
+        ('${DEV_B}', '${SITE_B}', '${CO_B}', 'smoke_detector');
+    `);
+  });
+
+  it('devices are active unless marked removed', async () => {
+    expect(await rows(`select status from devices where id = '${DEV_A}'`)).toEqual([{ status: 'active' }]);
+    await expect(db.query(`update devices set status = 'lost' where id = '${DEV_A}'`)).rejects.toThrow(/devices_status_check/);
+  });
+
+  it("an engineer records a test against their jobsheet; a retry of the same id is ignored", async () => {
+    const id = '00000000-0000-0000-000a-000000000001';
+    await as(db, U.engA2, () => db.query(testSql(id, DEV_A, JS2)));
+    await as(db, U.engA2, () => db.query(`${testSql(id, DEV_A, JS2)} on conflict do nothing`));
+    expect(await count(`select count(*)::int n from device_tests where device_id = '${DEV_A}' and jobsheet_id = '${JS2}'`)).toBe(1);
+  });
+
+  it('one test per device per jobsheet', async () => {
+    await expect(db.query(testSql('00000000-0000-0000-000a-000000000002', DEV_A, JS2)))
+      .rejects.toThrow(/device_tests_jobsheet_device_uniq/);
+  });
+
+  it("can't test another company's device, even under your own company id", async () => {
+    await expect(as(db, U.engA, () => db.query(testSql('00000000-0000-0000-000a-000000000003', DEV_B, null))))
+      .rejects.toThrow(/row-level security/);
+  });
+
+  it("can't attach a test to a jobsheet you can't see", async () => {
+    // JS2 belongs to engA2's job
+    await expect(as(db, U.engA, () => db.query(testSql('00000000-0000-0000-000a-000000000004', DEV_A, JS2))))
+      .rejects.toThrow(/row-level security/);
+  });
+
+  it('a manual test (no jobsheet) is allowed for any member', async () => {
+    await as(db, U.engA, () => db.query(testSql('00000000-0000-0000-000a-000000000005', DEV_A, null)));
+    expect(await as(db, U.mgrB, () => count(`select count(*)::int n from device_tests where device_id = '${DEV_A}'`))).toBe(0);
+  });
+
+  it('only managers can edit or remove a device', async () => {
+    const res = await as(db, U.engA, () => db.query(`update devices set status = 'removed' where id = '${DEV_A}'`));
+    expect(res.affectedRows).toBe(0);
+    await as(db, U.mgrA, () => db.query(`update devices set status = 'removed' where id = '${DEV_A}'`));
+    expect(await rows(`select status from devices where id = '${DEV_A}'`)).toEqual([{ status: 'removed' }]);
+  });
+});

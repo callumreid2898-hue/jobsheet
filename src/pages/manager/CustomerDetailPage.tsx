@@ -92,6 +92,14 @@ export function CustomerDetailPage() {
         subtitle={customer.contact_email ?? undefined}
         backHref="/manager/customers"
         onBack={() => navigate('/manager/customers')}
+        actions={
+          <button
+            onClick={() => navigate(`/manager/customers/${customer.id}/edit`)}
+            className="text-sm font-semibold px-3 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+          >
+            Edit
+          </button>
+        }
       />
 
       <Tabs tabs={TABS} paramName="tab" defaultTab="overview" />

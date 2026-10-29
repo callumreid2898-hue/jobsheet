@@ -275,7 +275,7 @@ export function GlobalSearch() {
         navigate(`/manager/invoices/${result.id}`);
         break;
       case 'device':
-        navigate(`/manager/sites/${result.site_id}/devices/${result.id}`);
+        navigate(`/devices/${result.id}`);
         break;
     }
   }

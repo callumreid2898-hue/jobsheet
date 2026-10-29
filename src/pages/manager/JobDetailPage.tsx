@@ -390,6 +390,8 @@ export function JobDetailPage() {
                 template={template}
                 jobsheetId={jobsheet.id}
                 companyId={company?.id ?? jobsheet.company_id}
+                siteId={job?.site_id}
+                systemId={job?.system_id}
                 readOnly={true}
               />
             </div>

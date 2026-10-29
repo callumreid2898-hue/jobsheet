@@ -122,6 +122,16 @@ In a `writeRecords` batch each write waits for the ones before it (parent before
 - `supabase/scripts/emtec_staff_invites.sql` adds Emtec's staff as pending invites (claimed on first sign-in; non-destructive, re-runnable).
 - `supabase/scripts/emtec_reset_and_import.sql` is a one-off: wipes one company's business data and loads Emtec's 49 sites (tested in `tests/db/emtecImport.test.ts`).
 
+### Devices
+
+- Rules in `src/lib/devices.ts`: labels, `parseDevicePayload()` (scanner), `deviceQrUrl()`, `coverage()` (active devices with a pass/fail in the last 12 months; removed and "not tested" don't count), `collectDeviceTests()`.
+- `devices.status` is `active` / `removed` (00017); removed devices keep their history but leave service sheets and coverage. Link a device to a system with `system_id` (picker on the device form).
+- One device page for both roles: `/devices/:id` (Record test). Managers also get `/devices/:id/edit` and `/devices/:id/qr`. Add a device from the site's Devices tab (`/manager/sites/:siteId/devices/add`). Old `/manager/sites/:siteId/devices/...` URLs redirect.
+- A QR label holds `<origin>/d/<qr_code>`, so a phone camera opens the device; `/d/:code` looks it up. The scanner also accepts the bare code on older labels.
+- Service sheets: a `device_tests` template field lists the site's active devices (on the job's system, or on none). Answers are `{ [deviceId]: { result, note, label } }`; a fail needs a note and raises a remedial. Submit queues one `device_tests` insert per device with a result (`deviceTestIdFor(jobsheet, device)`, after the jobsheet). RLS: the device must be the caller's company's, and the jobsheet one they can see.
+- Engineers' phones keep the day's sites' devices (`EngineerJobsPage`, `EngineerJobDetailPage`) for offline scanning and tests. The engineer job page shows site hazards, keyholders and ARC / police URN.
+- Edit forms: site (`/manager/sites/:id/edit`, incl. hazards and keyholders in calling order), system (`/manager/sites/:id/systems/new`, `/manager/systems/:id/edit`), customer (`/manager/customers/:id/edit`). The site's customer can't be changed (contracts copy it).
+
 ### Switched-off features
 
 - `FEATURES` in `src/lib/features.ts` turns parts of the app off without deleting them. Quotes and invoices are off: no menu items, routes, dashboard tiles, report tab, search results, "Create invoice" button or `invoiced`/`quoted` filter options, and `useQuotes`/`useInvoices` fetch nothing. Their pages, hooks and tables are kept; gate any new entry point on the flag.

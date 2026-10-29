@@ -1,7 +1,8 @@
 import { View, Text, Image, StyleSheet } from '@react-pdf/renderer';
-import type { Company, Job, Site, Customer, Profile, Remedial, Photo, PassFailNote, YesNoNa } from '../types';
+import type { Company, Job, Site, Customer, Profile, Remedial, Photo, PassFailNote, YesNoNa, DeviceTestAnswers, DeviceTestResult } from '../types';
 import type { SectionDef, FieldDef } from '../templates/types';
 import { formatUKDateTime } from '../lib/dates';
+import { DEVICE_TEST_LABELS } from '../lib/devices';
 
 const colors = {
   primary: '#1e40af',
@@ -134,7 +135,8 @@ export type AnswerDisplay =
   | { kind: 'empty' }
   | { kind: 'text'; text: string }
   | { kind: 'pass_fail'; result: 'pass' | 'fail' | null; note: string }
-  | { kind: 'checklist'; items: [string, boolean][] };
+  | { kind: 'checklist'; items: [string, boolean][] }
+  | { kind: 'devices'; rows: { label: string; result: DeviceTestResult; note: string }[] };
 
 const YES_NO_NA: Record<YesNoNa, string> = { yes: 'Yes', no: 'No', 'n/a': 'N/A' };
 
@@ -154,6 +156,12 @@ export function answerDisplay(field: FieldDef, value: unknown): AnswerDisplay {
     }
     case 'yes_no_na':
       return { kind: 'text', text: YES_NO_NA[value as YesNoNa] ?? String(value) };
+    case 'device_tests': {
+      const rows = Object.values(value as DeviceTestAnswers)
+        .filter(e => e?.result)
+        .map(e => ({ label: e.label, result: e.result!, note: e.note?.trim() ?? '' }));
+      return rows.length ? { kind: 'devices', rows } : { kind: 'empty' };
+    }
     default:
       if (typeof value === 'boolean') return { kind: 'text', text: value ? 'Yes' : 'No' };
       if (typeof value === 'object') return { kind: 'text', text: JSON.stringify(value) };
@@ -164,7 +172,8 @@ export function answerDisplay(field: FieldDef, value: unknown): AnswerDisplay {
 function PDFFieldRow({ field, value }: { field: FieldDef; value: unknown }) {
   const d = answerDisplay(field, value);
   return (
-    <View style={pdfStyles.fieldRow} wrap={false}>
+    // A long device list may run over a page; everything else stays together
+    <View style={pdfStyles.fieldRow} wrap={d.kind === 'devices'}>
       <Text style={pdfStyles.fieldLabel}>{field.label}</Text>
       {d.kind === 'empty' && (
         <Text style={[pdfStyles.fieldValue, { color: colors.textGray, fontStyle: 'italic' }]}>—</Text>
@@ -178,6 +187,18 @@ function PDFFieldRow({ field, value }: { field: FieldDef; value: unknown }) {
             </Text>
           )}
           {d.note && <Text style={{ color: colors.textDark }}>{d.result ? ' — ' : ''}{d.note}</Text>}
+        </View>
+      )}
+      {d.kind === 'devices' && (
+        <View style={pdfStyles.fieldValue}>
+          {d.rows.map((r, i) => (
+            <Text key={i}>
+              <Text style={r.result === 'pass' ? pdfStyles.passText : r.result === 'fail' ? pdfStyles.failText : undefined}>
+                {DEVICE_TEST_LABELS[r.result].toUpperCase()}
+              </Text>
+              {'  '}{r.label}{r.note ? ` — ${r.note}` : ''}
+            </Text>
+          ))}
         </View>
       )}
       {d.kind === 'checklist' && (

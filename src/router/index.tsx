@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthGuard } from '../auth/AuthGuard';
 import { useAuth } from '../auth/AuthProvider';
 import { AppShell } from '../components/layout/AppShell';
@@ -27,10 +27,10 @@ import { ContractDetailPage } from '../pages/manager/ContractDetailPage';
 import { QuotesListPage } from '../pages/manager/QuotesListPage';
 import { CreateQuotePage } from '../pages/manager/CreateQuotePage';
 import { QuoteDetailPage } from '../pages/manager/QuoteDetailPage';
-import { SiteDevicesPage } from '../pages/manager/SiteDevicesPage';
-import { AddDevicePage } from '../pages/manager/AddDevicePage';
-import { DeviceDetailPage } from '../pages/manager/DeviceDetailPage';
-import { DeviceQRPage } from '../pages/manager/DeviceQRPage';
+import { DeviceFormPage } from '../pages/manager/DeviceFormPage';
+import { EditSitePage } from '../pages/manager/EditSitePage';
+import { SystemFormPage } from '../pages/manager/SystemFormPage';
+import { EditCustomerPage } from '../pages/manager/EditCustomerPage';
 
 // Manager pages — Phase 4 new
 import { DashboardPage } from '../pages/manager/DashboardPage';
@@ -49,6 +49,9 @@ import { ImportPage } from '../pages/manager/ImportPage';
 
 // Shared pages
 import { ScannerPage } from '../pages/ScannerPage';
+import { DeviceDetailPage } from '../pages/DeviceDetailPage';
+import { DeviceQRPage } from '../pages/DeviceQRPage';
+import { DeviceLinkPage } from '../pages/DeviceLinkPage';
 
 function RootRedirect() {
   const { profile } = useAuth();
@@ -62,6 +65,17 @@ function M({ children }: { children: React.ReactNode }) {
 
 function E({ children }: { children: React.ReactNode }) {
   return <AuthGuard requiredRole="engineer"><AppShell>{children}</AppShell></AuthGuard>;
+}
+
+/** Either role */
+function A({ children }: { children: React.ReactNode }) {
+  return <AuthGuard><AppShell>{children}</AppShell></AuthGuard>;
+}
+
+/** A legacy URL whose new address is built from its params */
+function Moved({ to }: { to: (params: Record<string, string | undefined>) => string }) {
+  const params = useParams();
+  return <Navigate to={to(params)} replace />;
 }
 
 export function AppRoutes() {
@@ -102,23 +116,33 @@ export function AppRoutes() {
       {/* ── Manager customers ──────────────────────────────────── */}
       <Route path="/manager/customers" element={<M><CustomersListPage /></M>} />
       <Route path="/manager/customers/:customerId" element={<M><CustomerDetailPage /></M>} />
+      <Route path="/manager/customers/:customerId/edit" element={<M><EditCustomerPage /></M>} />
 
       {/* ── Manager sites ──────────────────────────────────────── */}
       <Route path="/manager/sites" element={<M><SitesPage /></M>} />
       <Route path="/manager/sites/create" element={<M><CreateSitePage /></M>} />
       <Route path="/manager/sites/:siteId" element={<M><SiteDetailPage /></M>} />
+      <Route path="/manager/sites/:siteId/edit" element={<M><EditSitePage /></M>} />
 
       {/* Legacy URL: up one level to the site */}
       <Route path="/manager/sites/:siteId/history" element={<AuthGuard requiredRole="manager"><Navigate to=".." relative="path" replace /></AuthGuard>} />
 
       {/* ── Manager sites → systems ────────────────────────────── */}
+      <Route path="/manager/sites/:siteId/systems/new" element={<M><SystemFormPage /></M>} />
       <Route path="/manager/systems/:systemId" element={<M><SystemDetailPage /></M>} />
+      <Route path="/manager/systems/:systemId/edit" element={<M><SystemFormPage /></M>} />
 
-      {/* ── Manager sites → devices ────────────────────────────── */}
-      <Route path="/manager/sites/:siteId/devices" element={<M><SiteDevicesPage /></M>} />
-      <Route path="/manager/sites/:siteId/devices/add" element={<M><AddDevicePage /></M>} />
-      <Route path="/manager/sites/:siteId/devices/:deviceId" element={<M><DeviceDetailPage /></M>} />
-      <Route path="/manager/sites/:siteId/devices/:deviceId/qr" element={<M><DeviceQRPage /></M>} />
+      {/* ── Devices (the device page is shared; the scanner and QR labels open it) ── */}
+      <Route path="/manager/sites/:siteId/devices/add" element={<M><DeviceFormPage /></M>} />
+      <Route path="/devices/:deviceId" element={<A><DeviceDetailPage /></A>} />
+      <Route path="/devices/:deviceId/edit" element={<M><DeviceFormPage /></M>} />
+      <Route path="/devices/:deviceId/qr" element={<M><DeviceQRPage /></M>} />
+      <Route path="/d/:code" element={<A><DeviceLinkPage /></A>} />
+
+      {/* Legacy device URLs */}
+      <Route path="/manager/sites/:siteId/devices" element={<AuthGuard requiredRole="manager"><Moved to={p => `/manager/sites/${p.siteId}?tab=devices`} /></AuthGuard>} />
+      <Route path="/manager/sites/:siteId/devices/:deviceId" element={<AuthGuard><Moved to={p => `/devices/${p.deviceId}`} /></AuthGuard>} />
+      <Route path="/manager/sites/:siteId/devices/:deviceId/qr" element={<AuthGuard requiredRole="manager"><Moved to={p => `/devices/${p.deviceId}/qr`} /></AuthGuard>} />
 
       {/* ── Manager contracts ──────────────────────────────────── */}
       <Route path="/manager/contracts" element={<M><ContractsListPage /></M>} />
@@ -149,7 +173,7 @@ export function AppRoutes() {
       <Route path="/manager/team" element={<M><TeamPage /></M>} />
 
       {/* ── QR Scanner (both roles) ────────────────────────────── */}
-      <Route path="/scan" element={<AuthGuard><AppShell><ScannerPage /></AppShell></AuthGuard>} />
+      <Route path="/scan" element={<A><ScannerPage /></A>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

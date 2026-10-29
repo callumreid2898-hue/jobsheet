@@ -3,7 +3,7 @@
   "name": "Emergency Lighting Test",
   "system_type": "emergency_lighting",
   "job_type": "ppm_service",
-  "version": 1,
+  "version": 2,
   "sections": [
     {
       "id": "test_details",
@@ -21,6 +21,13 @@
         {"id": "fittings_tested_count", "type": "number", "label": "Number of fittings tested", "required": true},
         {"id": "fitting_locations", "type": "longtext", "label": "Fitting locations / IDs tested", "hint": "List fitting reference numbers or locations"},
         {"id": "emergency_duration_result", "type": "pass_fail_note", "label": "Duration / functional test result", "triggers_remedial": true, "remedialOn": "fail", "remedial_priority": "urgent", "hint": "Annual: all fittings must illuminate for rated duration. Monthly: spot check."}
+      ]
+    },
+    {
+      "id": "device_register",
+      "title": "Device Tests",
+      "fields": [
+        {"id": "device_tests", "type": "device_tests", "label": "Registered devices", "hint": "Fittings on the site register. Each fail becomes an urgent remedial.", "triggers_remedial": true, "remedial_priority": "urgent"}
       ]
     },
     {

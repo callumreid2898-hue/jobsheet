@@ -9,6 +9,7 @@ import { SelectField } from './fields/SelectField';
 import { ChecklistField } from './fields/ChecklistField';
 import { PhotoField } from './fields/PhotoField';
 import { SignatureField } from './fields/SignatureField';
+import { DeviceTestsField } from './fields/DeviceTestsField';
 
 interface FormSectionProps {
   section: SectionDef;
@@ -34,6 +35,7 @@ export function FormSection({ section, answers, onChange, errors, readOnly }: Fo
       case 'checklist':      return <ChecklistField key={field.id} {...props} />;
       case 'photo':          return <PhotoField key={field.id} {...props} />;
       case 'signature':      return <SignatureField key={field.id} {...props} />;
+      case 'device_tests':   return <DeviceTestsField key={field.id} {...props} />;
       default:               return null;
     }
   }

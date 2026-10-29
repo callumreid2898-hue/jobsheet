@@ -10,6 +10,9 @@ interface FormEngineProps {
   template: TemplateDef;
   jobsheetId: string;
   companyId: string;
+  /** The job's site and system (for the device tests field) */
+  siteId?: string;
+  systemId?: string | null;
   readOnly?: boolean;
   onSave?: (answers: AnswersMap) => void;
   onSubmit?: (answers: AnswersMap) => void | Promise<void>;
@@ -17,7 +20,7 @@ interface FormEngineProps {
   prepareSubmit?: (answers: AnswersMap) => AnswersMap;
 }
 
-export function FormEngine({ template, jobsheetId, companyId, readOnly = false, onSave, onSubmit, prepareSubmit }: FormEngineProps) {
+export function FormEngine({ template, jobsheetId, companyId, siteId, systemId, readOnly = false, onSave, onSubmit, prepareSubmit }: FormEngineProps) {
   const { answers, setAnswer, isSaving, saveError, flush } = useFormState(jobsheetId, template);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -34,7 +37,7 @@ export function FormEngine({ template, jobsheetId, companyId, readOnly = false, 
   });
 
   void repeatCounts;
-  const media = useMemo(() => ({ jobsheetId, companyId }), [jobsheetId, companyId]);
+  const media = useMemo(() => ({ jobsheetId, companyId, siteId, systemId }), [jobsheetId, companyId, siteId, systemId]);
 
   function validate(toCheck: AnswersMap): boolean {
     const newErrors = validateAnswers(template, toCheck);

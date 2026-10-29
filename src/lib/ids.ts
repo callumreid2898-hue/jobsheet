@@ -15,3 +15,8 @@ export function remedialIdFor(
 ): string {
   return uuidv5(`remedial|${jobsheetId}|${sectionId}|${instance}|${fieldId}|${line}`, NAMESPACE);
 }
+
+/** One device test per (jobsheet, device). */
+export function deviceTestIdFor(jobsheetId: string, deviceId: string): string {
+  return uuidv5(`device_test|${jobsheetId}|${deviceId}`, NAMESPACE);
+}

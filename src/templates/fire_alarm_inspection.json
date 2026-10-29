@@ -3,7 +3,7 @@
   "name": "Fire Alarm Test & Inspection Certificate",
   "system_type": "fire_alarm",
   "job_type": "ppm_service",
-  "version": 1,
+  "version": 2,
   "sections": [
     {
       "id": "panel_details",
@@ -245,6 +245,13 @@
           "type": "pass_fail_note",
           "label": "All cable fixings secure and undamaged"
         }
+      ]
+    },
+    {
+      "id": "device_register",
+      "title": "Device Tests",
+      "fields": [
+        {"id": "device_tests", "type": "device_tests", "label": "Registered devices", "hint": "Detectors, call points and sounders on the site register. Each fail becomes an urgent remedial.", "triggers_remedial": true, "remedial_priority": "urgent"}
       ]
     },
     {

@@ -12,6 +12,7 @@ import { detectRemedials } from '../../form-engine/remedialDetector';
 import { collectMedia, MEDIA_BUCKET } from '../../lib/media';
 import { fetchOneCached } from '../../lib/cachedQuery';
 import { prefillAnswers, fillSubmitAnswers } from '../../lib/jobsheetPrefill';
+import { collectDeviceTests } from '../../lib/devices';
 import type { Job, Jobsheet, AnswersMap, Photo, TemplateId, Site, Customer, System } from '../../types';
 import type { TemplateDef } from '../../templates/types';
 
@@ -99,6 +100,7 @@ export function FillJobsheetPage() {
 
     // Detect remedials
     const remedialCreates = detectRemedials(template!, answers, jobsheet.id, job.site_id, profile.company_id);
+    const deviceTests = collectDeviceTests(template!, answers, jobsheet.id, profile.company_id, submittedAt);
     const jobsheetKey = syncKey('jobsheets', jobsheet.id);
 
     // Photos and signatures still on this device get uploaded. Anything taken then
@@ -126,7 +128,7 @@ export function FillJobsheetPage() {
 
     // One transaction, so a crash can't leave half a submission queued.
     // The server logs the submission to audit_log itself (trigger on jobsheets).
-    await db.transaction('rw', [db.remedials, db.jobsheets, db.jobs, db.photos, db.blobs, db.sync_queue], async () => {
+    await db.transaction('rw', [db.remedials, db.device_tests, db.jobsheets, db.jobs, db.photos, db.blobs, db.sync_queue], async () => {
       await db.jobsheets.put(updatedJs);
       await enqueueSync({ table: 'jobsheets', operation: 'upsert', payload: updatedJs as unknown as Record<string, unknown> });
       const pdfDependsOn = [jobsheetKey];
@@ -180,6 +182,16 @@ export function FillJobsheetPage() {
         pdfDependsOn.push(syncKey('remedials', remedial.id));
       }
 
+      // Device results go to each device's test history (insert-only; the ids are per jobsheet and device)
+      for (const test of deviceTests) {
+        await db.device_tests.put(test);
+        await enqueueSync({
+          table: 'device_tests', operation: 'insert',
+          payload: test as unknown as Record<string, unknown>,
+          depends_on: [jobsheetKey],
+        });
+      }
+
       await db.jobs.put(updatedJob);
       await enqueueJobStatus(job.id, 'awaiting_review', [jobsheetKey]);
       pdfDependsOn.push(syncKey('jobs', job.id));
@@ -209,6 +221,8 @@ export function FillJobsheetPage() {
         template={template}
         jobsheetId={jobsheet.id}
         companyId={profile?.company_id ?? ''}
+        siteId={job.site_id}
+        systemId={job.system_id}
         readOnly={false}
         onSubmit={handleSubmit}
         prepareSubmit={answers => fillSubmitAnswers(template, answers, job, new Date())}

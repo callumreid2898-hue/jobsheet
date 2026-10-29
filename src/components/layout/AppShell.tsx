@@ -53,11 +53,11 @@ export function AppShell({ children }: AppShellProps) {
     <>
       {previewBanner}
       <div className={`min-h-screen flex flex-col bg-gray-50 ${previewRole ? 'pt-8' : ''}`}>
-        <SyncStatusBanner />
+        <div className="print:hidden"><SyncStatusBanner /></div>
         <main className={`flex-1 ${showBottomNav ? 'pb-16' : ''}`}>
           {children}
         </main>
-        {showBottomNav && <BottomNav />}
+        {showBottomNav && <div className="print:hidden"><BottomNav /></div>}
         <GlobalToasts />
       </div>
     </>

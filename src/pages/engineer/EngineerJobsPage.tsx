@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import { useJobs } from '../../hooks/useJobs';
@@ -6,7 +6,8 @@ import { useSites } from '../../hooks/useSites';
 import { JobCard } from '../../components/JobCard';
 import { Spinner } from '../../components/ui/Spinner';
 import { addDaysISO, localISODate } from '../../lib/dates';
-import type { Job } from '../../types';
+import { fetchCached } from '../../lib/cachedQuery';
+import type { Device, Job } from '../../types';
 
 export function EngineerJobsPage() {
   const { profile } = useAuth();
@@ -16,6 +17,14 @@ export function EngineerJobsPage() {
   const { sites } = useSites();
 
   const siteMap = new Map(sites.map(s => [s.id, s]));
+
+  // Save the day's sites' devices on the phone, so the scanner and device tests work without signal.
+  // (Sites, with their hazards and keyholders, are saved by useSites.)
+  const siteIds = [...new Set(jobs.map(j => j.site_id))].sort().join(',');
+  useEffect(() => {
+    if (!siteIds || !navigator.onLine) return;
+    for (const siteId of siteIds.split(',')) void fetchCached<Device>({ table: 'devices', eq: { site_id: siteId } });
+  }, [siteIds]);
 
   function changeDate(delta: number) {
     setSelectedDate(d => addDaysISO(d, delta));

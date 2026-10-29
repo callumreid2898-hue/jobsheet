@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
+import { fetchCached } from '../../lib/cachedQuery';
 import { db } from '../../lib/db';
 import { changeJobStatus } from '../../offline/SyncQueue';
 import { engineerActions, type EngineerAction } from '../../lib/jobStatus';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { Spinner } from '../../components/ui/Spinner';
-import type { Job, Site, Customer, System } from '../../types';
+import type { Device, Job, Site, Customer, System } from '../../types';
 
 export function EngineerJobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -33,6 +34,8 @@ export function EngineerJobDetailPage() {
           if (data) { s = data as Site; await db.sites.put(s).catch(() => {}); }
         }
         setSite(s ?? null);
+        // Keep the site's devices on the phone for the scanner and the device tests
+        if (navigator.onLine) void fetchCached<Device>({ table: 'devices', eq: { site_id: j.site_id } });
         if (s) {
           let c = await db.customers.get(s.customer_id).catch(() => null);
           if (!c) {
@@ -90,6 +93,13 @@ export function EngineerJobDetailPage() {
         <StatusPill status={job.status} />
       </div>
 
+      {site.hazards && (
+        <div role="alert" className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <p className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-0.5">⚠ Site hazards</p>
+          <p className="text-sm text-red-900 whitespace-pre-wrap">{site.hazards}</p>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-50">
         {customer && (
           <div className="px-4 py-3">
@@ -114,6 +124,28 @@ export function EngineerJobDetailPage() {
           <div className="px-4 py-3">
             <p className="text-xs text-gray-400 mb-0.5">Access notes</p>
             <p className="text-sm text-gray-700">{site.access_notes}</p>
+          </div>
+        )}
+        {site.keyholders?.length > 0 && (
+          <div className="px-4 py-3" data-testid="keyholders">
+            <p className="text-xs text-gray-400 mb-1">Keyholders (in calling order)</p>
+            <ol className="space-y-1">
+              {[...site.keyholders].sort((a, b) => a.order - b.order).map((k, i) => (
+                <li key={i} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-gray-900">{i + 1}. {k.name}</span>
+                  {k.phone && <a href={`tel:${k.phone}`} className="text-blue-600 font-medium">{k.phone}</a>}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+        {(site.arc_name || site.arc_account || site.police_urn) && (
+          <div className="px-4 py-3">
+            <p className="text-xs text-gray-400 mb-0.5">Alarm monitoring</p>
+            {(site.arc_name || site.arc_account) && (
+              <p className="text-sm text-gray-900">ARC: {[site.arc_name, site.arc_account && `account ${site.arc_account}`].filter(Boolean).join(', ')}</p>
+            )}
+            {site.police_urn && <p className="text-sm text-gray-900">Police URN: {site.police_urn}</p>}
           </div>
         )}
         {job.notes && (

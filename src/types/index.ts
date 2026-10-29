@@ -255,10 +255,14 @@ export type FieldAnswer =
   | ChecklistAnswers
   | PhotoRef[]
   | SignatureRef
+  | DeviceTestAnswers
   | AnswersMap[] // repeatable section instances
   | null;
 
 export type YesNoNa = 'yes' | 'no' | 'n/a';
+
+/** A `device_tests` field: one entry per device, keyed by device id. `label` is kept so the answer reads on its own. */
+export type DeviceTestAnswers = Record<string, { result: DeviceTestResult | null; note: string; label: string }>;
 
 export interface PassFailNote {
   result: 'pass' | 'fail' | null;
@@ -390,11 +394,14 @@ export interface ContractVisit {
 
 export type DeviceTestResult = 'pass' | 'fail' | 'not_tested';
 
+export type DeviceStatus = 'active' | 'removed';
+
 export interface Device {
   id: string;
   site_id: string;
   company_id: string;
   system_id: string | null;
+  status: DeviceStatus;    // removed devices are kept for their history but not tested (00017)
   type: string;
   location: string | null;
   make: string | null;

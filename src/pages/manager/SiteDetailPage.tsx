@@ -5,7 +5,7 @@ import { useSystems } from '../../hooks/useSystems';
 import { useJobs } from '../../hooks/useJobs';
 import { useRemedials } from '../../hooks/useRemedials';
 import { useContracts } from '../../hooks/useContracts';
-import { useDevices } from '../../hooks/useDevices';
+import { useDevices, useDeviceTests } from '../../hooks/useDevices';
 import { useCachedQuery } from '../../hooks/useCachedQuery';
 import { useProfiles } from '../../hooks/useProfiles';
 import { openStorageFile } from '../../lib/media';
@@ -16,12 +16,14 @@ import { Tabs, useActiveTab } from '../../components/ui/Tabs';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { DeviceRegister } from '../../components/DeviceRegister';
 import type { Site, Customer, Job, Jobsheet, RemedialPriority } from '../../types';
 import { SYSTEM_TYPE_LABELS, CONTRACT_STATUS_CLASSES } from '../../lib/contracts';
 
 const TABS = [
   { id: 'overview',  label: 'Overview'  },
   { id: 'systems',   label: 'Systems'   },
+  { id: 'devices',   label: 'Devices'   },
   { id: 'jobs',      label: 'Jobs'      },
   { id: 'jobsheets', label: 'Jobsheets' },
   { id: 'remedials', label: 'Remedials' },
@@ -145,6 +147,7 @@ export function SiteDetailPage() {
   const { remedials } = useRemedials({ siteId });
   const { contracts } = useContracts({ siteId });
   const { devices } = useDevices({ siteId });
+  const { tests } = useDeviceTests(activeTab === 'devices' && devices.length > 0);
 
   const siteJobs = useMemo(
     () => jobs.filter((j) => j.site_id === siteId),
@@ -193,6 +196,14 @@ export function SiteDetailPage() {
         subtitle={customer?.name}
         backHref="/manager/sites"
         onBack={() => navigate('/manager/sites')}
+        actions={
+          <button
+            onClick={() => navigate(`/manager/sites/${site.id}/edit`)}
+            className="text-sm font-semibold px-3 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+          >
+            Edit
+          </button>
+        }
       />
 
       <Tabs tabs={TABS} paramName="tab" defaultTab="overview" />
@@ -268,6 +279,14 @@ export function SiteDetailPage() {
         {/* ── Systems ──────────────────────────────────────────── */}
         {activeTab === 'systems' && (
           <>
+            <div className="flex justify-end mb-3">
+              <button
+                onClick={() => navigate(`/manager/sites/${site.id}/systems/new`)}
+                className="bg-[#0D3349] text-white text-sm font-semibold px-3 py-2 rounded-lg"
+              >
+                + Add system
+              </button>
+            </div>
             {systems.length === 0 ? (
               <EmptyState heading="No systems" description="No systems are registered at this site." />
             ) : (
@@ -297,6 +316,16 @@ export function SiteDetailPage() {
               </ul>
             )}
           </>
+        )}
+
+        {/* ── Devices ──────────────────────────────────────────── */}
+        {activeTab === 'devices' && (
+          <DeviceRegister
+            devices={devices}
+            tests={tests}
+            addHref={`/manager/sites/${site.id}/devices/add`}
+            emptyText="Add the site's detectors, call points, sounders and fittings to test them on service sheets."
+          />
         )}
 
         {/* ── Jobs ─────────────────────────────────────────────── */}
@@ -424,9 +453,6 @@ export function SiteDetailPage() {
             </div>
           </div>
         )}
-
-        {/* Suppress unused variable warning for devices — available for future use */}
-        {activeTab === '__devices_unused__' && devices.length === 0 && null}
       </div>
     </div>
   );

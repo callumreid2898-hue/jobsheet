@@ -1,6 +1,6 @@
 import type { TemplateDef, FieldDef } from '../templates/types';
 import { remedialIdFor } from '../lib/ids';
-import type { AnswersMap, RemedialCreate, PassFailNote, YesNoNa, RemedialPriority } from '../types';
+import type { AnswersMap, RemedialCreate, PassFailNote, YesNoNa, RemedialPriority, DeviceTestAnswers } from '../types';
 
 export function detectRemedials(
   template: TemplateDef,
@@ -50,6 +50,19 @@ export function detectRemedials(
             site_id: siteId,
             company_id: companyId,
             description: `${field.label}${pfn.note ? ': ' + pfn.note : ` — ${triggerOn}`}`,
+            priority,
+          });
+        }
+      } else if (field.type === 'device_tests') {
+        // One remedial per failed device
+        for (const [deviceId, entry] of Object.entries(value as DeviceTestAnswers)) {
+          if (entry?.result !== 'fail') continue;
+          remedials.push({
+            id: remedialIdFor(jobsheetId, sectionId, instance, `${field.id}|${deviceId}`),
+            jobsheet_id: jobsheetId,
+            site_id: siteId,
+            company_id: companyId,
+            description: `${entry.label}${entry.note?.trim() ? ': ' + entry.note.trim() : ' — failed test'}`,
             priority,
           });
         }

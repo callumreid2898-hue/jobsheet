@@ -1,5 +1,5 @@
 import type { TemplateDef, FieldDef } from '../templates/types';
-import type { AnswersMap, FieldAnswer, PassFailNote, PhotoRef, SignatureRef, ChecklistAnswers } from '../types';
+import type { AnswersMap, FieldAnswer, PassFailNote, PhotoRef, SignatureRef, ChecklistAnswers, DeviceTestAnswers } from '../types';
 
 export function instanceErrorKey(sectionId: string, index: number, fieldId: string): string {
   return `${sectionId}.${index}.${fieldId}`;
@@ -17,6 +17,8 @@ export function isAnswered(field: FieldDef, value: FieldAnswer | undefined): boo
       return Array.isArray(value) && (value as PhotoRef[]).length > 0;
     case 'signature':
       return Boolean((value as SignatureRef).storage_path);
+    case 'device_tests':
+      return Object.values(value as DeviceTestAnswers).some(e => e?.result != null);
     case 'number':
       return typeof value === 'number' ? !Number.isNaN(value) : String(value).trim() !== '';
     default:
@@ -29,6 +31,10 @@ function fieldError(field: FieldDef, value: FieldAnswer | undefined): string | n
   if (field.type === 'pass_fail_note') {
     const pfn = value as PassFailNote | undefined;
     if (pfn?.result === 'fail' && !pfn.note?.trim()) return 'Add a note explaining the fail';
+  }
+  if (field.type === 'device_tests' && value) {
+    const unexplained = Object.values(value as DeviceTestAnswers).filter(e => e?.result === 'fail' && !e.note?.trim());
+    if (unexplained.length) return `Add a note for each failed device (${unexplained.map(e => e.label).join(', ')})`;
   }
   return null;
 }

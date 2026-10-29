@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchOneCached } from '../../lib/cachedQuery';
 import { useRemedials } from '../../hooks/useRemedials';
-import { useDevices } from '../../hooks/useDevices';
+import { useDevices, useDeviceTests } from '../../hooks/useDevices';
 import { RecordHeader } from '../../components/ui/RecordHeader';
 import { Tabs, useActiveTab } from '../../components/ui/Tabs';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { DeviceRegister } from '../../components/DeviceRegister';
 import type { System, RemedialPriority } from '../../types';
 import { SYSTEM_TYPE_LABELS } from '../../lib/contracts';
 
@@ -50,8 +51,13 @@ export function SystemDetailPage() {
   const [system, setSystem] = useState<System | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { remedials } = useRemedials({ siteId: system?.site_id });
+  const { remedials: fetchedRemedials } = useRemedials({ siteId: system?.site_id });
   const { devices } = useDevices({ siteId: system?.site_id });
+  // This system's devices, plus the site's devices not linked to any system
+  const systemDevices = devices.filter(d => d.system_id === systemId || d.system_id === null);
+  const { tests } = useDeviceTests(activeTab === 'devices' && systemDevices.length > 0);
+  // Until the system loads the query has no site, so drop anything that isn't this site's
+  const remedials = fetchedRemedials.filter(r => r.site_id === system?.site_id);
 
   useEffect(() => {
     if (!systemId) return;
@@ -92,8 +98,16 @@ export function SystemDetailPage() {
       <RecordHeader
         title={SYSTEM_TYPE_LABELS[system.type] ?? system.type}
         subtitle={[system.make, system.model].filter(Boolean).join(' ') || undefined}
-        onBack={() => navigate(`/manager/sites/${system.site_id}`)}
-        backHref={`/manager/sites/${system.site_id}`}
+        onBack={() => navigate(`/manager/sites/${system.site_id}?tab=systems`)}
+        backHref={`/manager/sites/${system.site_id}?tab=systems`}
+        actions={
+          <button
+            onClick={() => navigate(`/manager/systems/${system.id}/edit`)}
+            className="text-sm font-semibold px-3 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+          >
+            Edit
+          </button>
+        }
       />
 
       <Tabs tabs={TABS} paramName="tab" defaultTab="overview" />
@@ -119,51 +133,13 @@ export function SystemDetailPage() {
 
         {/* ── Devices ──────────────────────────────────────────── */}
         {activeTab === 'devices' && (
-          <>
-            {devices.length === 0 ? (
-              <EmptyState
-                heading="No devices"
-                description="No devices have been registered for this system."
-              />
-            ) : (
-              <ul className="space-y-2">
-                {devices.map((device) => (
-                  <li key={device.id}>
-                    <button
-                      onClick={() =>
-                        navigate(`/manager/sites/${system.site_id}/devices/${device.id}`)
-                      }
-                      className="w-full flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm hover:bg-slate-50 transition-colors text-left"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-800 capitalize">
-                          {device.type}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {[device.location, device.serial_number]
-                            .filter(Boolean)
-                            .join(' · ') || 'No location recorded'}
-                        </p>
-                      </div>
-                      <svg
-                        className="w-4 h-4 text-slate-400 shrink-0"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
+          <DeviceRegister
+            devices={systemDevices}
+            tests={tests}
+            addHref={`/manager/sites/${system.site_id}/devices/add`}
+            emptyText="No devices are linked to this system."
+            showUnlinked
+          />
         )}
 
         {/* ── History ──────────────────────────────────────────── */}

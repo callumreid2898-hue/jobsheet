@@ -335,6 +335,28 @@ Tests: `tests/unit/jobFlow.test.ts` (transitions vs the RPC, BST/GMT dates, stab
 
 ## Batch 11 — Devices, QR, coverage, site safety info (L) · H18 H19 H20 H24 M17 M18
 
+**Batch 10: skipped (2026-10-29).** Quotes and invoices are switched off (`src/lib/features.ts`), so the remedial → quote chain would have no entry point. Revisit if quotes are turned back on.
+
+**Batch 11 result (2026-10-29), done locally, not applied to hosted (needs 00017):**
+- **H18:** one device page for both roles, `/devices/:id`, with Record test (a fail needs a note). The scanner, search and site/system lists open it; managers get Edit and QR label. Old manager URLs redirect.
+- **H19:**
+  - A `device_tests` template field (fire alarm service and inspection, emergency lighting; templates now v2). It lists the site's active devices on the job's system or on none, with Pass / Fail / Not tested, a note, and "Pass all not yet recorded".
+  - On submit, one `device_tests` insert per device with a result, `jobsheet_id` set, deterministic id, after the jobsheet. A fail raises an urgent remedial; the PDF prints the results.
+  - Coverage is a pure function (`coverage()` in `src/lib/devices.ts`), not a SQL view, so it also works offline: active devices with a pass or fail in the last 12 months, rounded down. Shown on the site's Devices tab and the system's.
+- **H20:** edit forms for sites (incl. hazards, ARC, police URN, keyholders with calling order), systems (and "Add system" on the site) and customers. The engineer job page shows hazards (as an alert), keyholders with tap-to-call, and ARC / police URN; sites are already cached by `useSites`, and the day's sites' devices are now saved too.
+- **H24:** a Devices tab on the site page with coverage and "+ Add device" (`SiteDevicesPage` removed).
+- **M17:**
+  - The scanner acts on the first decode only, stops the camera safely even mid-start, has "Scan again" without a reload, and tells "offline" from "not registered".
+  - QR labels hold `<origin>/d/<qr_code>` (`/d/:code` opens the device) and print only the label (`print:` styles on the shells).
+- **M18:** system picker on the device form (defaults to the site's only system). The system page shows its own devices plus unlinked ones, marked. Its lists no longer show the whole company's items while loading.
+- **Migration `00017_devices.sql`:** `devices.status` (active / removed); `device_tests` insert policy checks the device is the caller's company's and the jobsheet is visible to them; one test per device per jobsheet.
+- **Tests:**
+  - `tests/unit/devices.test.ts` (15): payload parsing, coverage (no devices, not tested, the 12-month edge, removed, rounding, failing), collecting tests, remedials, validation, PDF;
+  - `tests/db/rls.test.ts` "devices (00017)" (7);
+  - `tests/e2e/devices.spec.ts` (3): service-sheet device tests to submit, QR link and manual test, manager coverage / add device / edit safety info.
+- **Not done:** device tests inside repeatable sections aren't offered in any template (the code handles them). Coverage fetches all the company's device tests; fine at Emtec's size, but it should be narrowed (by site) if the history grows large.
+
+
 **Files:** a new shared route `/devices/:id`, a `device_test` form field type, `FormSection.tsx`, `remedialDetector.ts` (failed test → remedial), migration (coverage view, `devices.status`), `ScannerPage.tsx`, `DeviceQRPage.tsx` (URL payload, print CSS), `SiteDetailPage.tsx` (Devices tab, edit forms, keyholder editor), `EngineerJobDetailPage.tsx` (hazards, keyholders), `AddDevicePage.tsx` (system picker).
 
 **Tests to add:** coverage maths (0 devices, not_tested, no tests); scanner payload parsing.

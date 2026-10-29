@@ -400,6 +400,7 @@ export function ImportPage() {
         site_id:        site.id,
         company_id:     profile.company_id,
         system_id:      null,
+        status:         'active',
         type,
         location:       getMapped(mapping, headers, row, 'location') || null,
         make:           getMapped(mapping, headers, row, 'make') || null,

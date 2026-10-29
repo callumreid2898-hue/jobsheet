@@ -9,7 +9,8 @@ export type FieldType =
   | 'select'
   | 'checklist'
   | 'photo'
-  | 'signature';
+  | 'signature'
+  | 'device_tests';                      // the site's registered devices, pass/fail each (saved to device_tests on submit)
 
 export interface FieldDef {
   id: string;                            // stable key used in AnswersMap; snake_case

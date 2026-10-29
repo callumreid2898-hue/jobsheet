@@ -3,7 +3,7 @@
   "name": "Fire Alarm Service",
   "system_type": "fire_alarm",
   "job_type": "ppm_service",
-  "version": 1,
+  "version": 2,
   "sections": [
     {
       "id": "panel_checks",
@@ -58,6 +58,13 @@
       "title": "Log Book",
       "fields": [
         {"id": "log_book_updated", "type": "yes_no_na", "label": "Log book updated", "required": true}
+      ]
+    },
+    {
+      "id": "device_register",
+      "title": "Device Tests",
+      "fields": [
+        {"id": "device_tests", "type": "device_tests", "label": "Registered devices", "hint": "Detectors, call points and sounders on the site register. Each fail becomes an urgent remedial.", "triggers_remedial": true, "remedial_priority": "urgent"}
       ]
     },
     {
